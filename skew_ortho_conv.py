@@ -7,31 +7,31 @@ import einops
 
 
 # TODO change fantastic four, add groups number for each tensor
-def fantastic_four(conv_filter, groups, num_iters=50):
-    out_ch, in_ch, h, w = conv_filter.shape
+def fantastic_four(conv_filter, num_iters=50, device="cuda"):
+    groups, out_ch, in_ch, h, w = conv_filter.shape
 
-    u1 = torch.randn((groups, 1, in_ch, 1, w), device="cuda", requires_grad=False)
+    u1 = torch.randn((groups, 1, in_ch, 1, w), device=device, requires_grad=False)
     u1.data = l2_normalize(u1.data)
 
-    u2 = torch.randn((groups, 1, in_ch, h, 1), device="cuda", requires_grad=False)
+    u2 = torch.randn((groups, 1, in_ch, h, 1), device=device, requires_grad=False)
     u2.data = l2_normalize(u2.data)
 
-    u3 = torch.randn((groups, 1, in_ch, h, w), device="cuda", requires_grad=False)
+    u3 = torch.randn((groups, 1, in_ch, h, w), device=device, requires_grad=False)
     u3.data = l2_normalize(u3.data)
 
-    u4 = torch.randn((groups, out_ch, 1, h, w), device="cuda", requires_grad=False)
+    u4 = torch.randn((groups, out_ch, 1, h, w), device=device, requires_grad=False)
     u4.data = l2_normalize(u4.data)
 
-    v1 = torch.randn((groups, out_ch, 1, h, 1), device="cuda", requires_grad=False)
+    v1 = torch.randn((groups, out_ch, 1, h, 1), device=device, requires_grad=False)
     v1.data = l2_normalize(v1.data)
 
-    v2 = torch.randn((groups, out_ch, 1, 1, w), device="cuda", requires_grad=False)
+    v2 = torch.randn((groups, out_ch, 1, 1, w), device=device, requires_grad=False)
     v2.data = l2_normalize(v2.data)
 
-    v3 = torch.randn((groups, out_ch, 1, 1, 1), device="cuda", requires_grad=False)
+    v3 = torch.randn((groups, out_ch, 1, 1, 1), device=device, requires_grad=False)
     v3.data = l2_normalize(v3.data)
 
-    v4 = torch.randn((groups, 1, in_ch, 1, 1), device="cuda", requires_grad=False)
+    v4 = torch.randn((groups, 1, in_ch, 1, 1), device=device, requires_grad=False)
     v4.data = l2_normalize(v4.data)
 
     for i in range(num_iters):
@@ -63,8 +63,8 @@ def fantastic_four(conv_filter, groups, num_iters=50):
 
 
 def l2_normalize(tensor, eps=1e-12):
-    norm = float(torch.sqrt(torch.sum(tensor.float() * tensor.float())))
-    norm = max(norm, eps)
+    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=0))
+    norm = torch.max(norm, torch.tensor([eps], device=norm.device))
     ans = tensor / norm
     return ans
 
@@ -121,6 +121,8 @@ class SOC(nn.Module):
         update_iters=1,
         update_freq=200,
         correction=0.7,
+        device="cuda",
+        testing=False
     ):
         super(SOC, self).__init__()
         assert (stride == 1) or (stride == 2)
@@ -130,7 +132,7 @@ class SOC(nn.Module):
         self.groups = groups
         assert max(self.out_channels, self.in_channels) % self.groups == 0
         self.max_channels = max(self.out_channels, self.in_channels) // self.groups
-
+        self.device = device
         self.stride = stride
         self.kernel_size = kernel_size
         self.update_iters = update_iters
@@ -138,20 +140,20 @@ class SOC(nn.Module):
         self.total_iters = 0
         self.train_terms = train_terms
         self.eval_terms = eval_terms
+        self.testing = testing
 
         if kernel_size == 1:
             correction = 1.0
 
         self.random_conv_filter = nn.Parameter(
-            torch.Tensor(
-                torch.randn(
-                    self.groups,
-                    self.max_channels,
-                    self.max_channels,
-                    self.kernel_size,
-                    self.kernel_size,
-                )
-            ).cuda(),
+            torch.randn(
+                self.groups,
+                self.max_channels,
+                self.max_channels,
+                self.kernel_size,
+                self.kernel_size,
+                device=self.device
+            ),
             requires_grad=True,
         )
         random_conv_filter_T = transpose_filter(self.random_conv_filter)
@@ -159,7 +161,7 @@ class SOC(nn.Module):
 
         with torch.no_grad():
             u1, v1, u2, v2, u3, v3, u4, v4 = fantastic_four(
-                conv_filter, num_iters=self.init_iters, groups=self.groups
+                conv_filter, num_iters=self.init_iters, device=self.device
             )
             self.u1 = nn.Parameter(u1, requires_grad=False)
             self.v1 = nn.Parameter(v1, requires_grad=False)
@@ -171,13 +173,13 @@ class SOC(nn.Module):
             self.v4 = nn.Parameter(v4, requires_grad=False)
 
         self.correction = nn.Parameter(
-            torch.Tensor([correction]).cuda(), requires_grad=False
+            torch.tensor([correction], device=self.device), requires_grad=False
         )
 
         self.enable_bias = bias
         if self.enable_bias:
             self.bias = nn.Parameter(
-                torch.Tensor(self.out_channels).cuda(), requires_grad=True
+                torch.randn(self.out_channels, device=self.device), requires_grad=True
             )
         else:
             self.bias = None
@@ -185,13 +187,18 @@ class SOC(nn.Module):
 
     def reset_parameters(self):
         stdv = 1.0 / np.sqrt(self.max_channels)
-        nn.init.normal_(self.random_conv_filter, std=stdv)
+        if not self.testing:
+            nn.init.normal_(self.random_conv_filter, std=stdv)
+        else:
+            nn.init.zeros_(self.random_conv_filter)
 
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
-            nn.init.uniform_(self.bias, -stdv, stdv)
+            if not self.testing:
+                nn.init.uniform_(self.bias, -stdv, stdv)
+            else:
+                nn.init.zeros_(self.bias)
 
-    # TODO change update_sigma for grouping
     def update_sigma(self):
         if self.training:
             if self.total_iters % self.update_freq == 0:
@@ -233,10 +240,12 @@ class SOC(nn.Module):
                 )
 
         func = torch.min
-        sigma1 = torch.sum(conv_filter * self.u1 * self.v1)
-        sigma2 = torch.sum(conv_filter * self.u2 * self.v2)
-        sigma3 = torch.sum(conv_filter * self.u3 * self.v3)
-        sigma4 = torch.sum(conv_filter * self.u4 * self.v4)
+        # add sum by dimension because we deal with 5-dimensional tensor and we want
+        # to compute approximation for each group separately
+        sigma1 = torch.sum(conv_filter * self.u1 * self.v1, dim=0)
+        sigma2 = torch.sum(conv_filter * self.u2 * self.v2, dim=0)
+        sigma3 = torch.sum(conv_filter * self.u3 * self.v3, dim=0)
+        sigma4 = torch.sum(conv_filter * self.u4 * self.v4, dim=0)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma
 
@@ -244,13 +253,12 @@ class SOC(nn.Module):
         random_conv_filter_T = transpose_filter(self.random_conv_filter)
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
-        conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
+        conv_filter_n = ((self.correction * conv_filter_skew) / (sigma + 1e-12)).view(
             self.groups * self.max_channels,
             self.max_channels,
             self.kernel_size,
             self.kernel_size,
-        )
-
+        )  # add here 1e-12 to sigma to avoid zero division
         if self.training:
             num_terms = self.train_terms
         else:
@@ -282,8 +290,92 @@ class SOC(nn.Module):
             z = z + curr_z
 
         if self.out_channels < self.in_channels:
-            z = z[:, : self.out_channels, :, :]
+            z = z[:, :self.out_channels, :, :]
 
         if self.enable_bias:
             z = z + self.bias.view(1, -1, 1, 1)
         return z
+
+
+# https://github.com/jaxony/ShuffleNet/blob/e9bf42f0cda8dda518cafffd515654cc04584e7a/model.py#L36C1-L53C13
+def channel_shuffle(x, groups):
+    batchsize, num_channels, height, width = x.data.size()
+
+    channels_per_group = num_channels // groups
+
+    # reshape
+    x = x.view(batchsize, groups, channels_per_group, height, width)
+
+    # transpose
+    # - contiguous() required if transpose() is used before view().
+    #   See https://github.com/pytorch/pytorch/issues/764
+    x = torch.transpose(x, 1, 2).contiguous()
+
+    # flatten
+    x = x.view(batchsize, -1, height, width)
+
+    return x
+
+
+class MonarchSOC(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=None,
+        bias=True,
+        groups=1,
+        train_terms=5,
+        eval_terms=12,
+        init_iters=50,
+        update_iters=1,
+        update_freq=200,
+        correction=0.7,
+        device="cuda",
+        testing=False
+    ):
+        super(MonarchSOC, self).__init__()
+
+        self.soc1 = SOC(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            groups=groups,
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+            testing=testing
+        )
+
+        self.soc2 = SOC(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            groups=groups,
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+            testing=testing
+        )
+        self.groups = groups
+
+    def forward(self, x):
+        x = self.soc1(x)
+        x = channel_shuffle(x, self.groups)
+        return self.soc2(x)
