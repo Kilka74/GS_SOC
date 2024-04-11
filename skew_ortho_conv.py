@@ -372,7 +372,10 @@ class MonarchSOC(nn.Module):
         self.testing = testing
 
     def forward(self, x):
-        x, filter_1 = self.soc1(x)
+        if self.testing:
+            x, filter_1 = self.soc1(x)
+        else:
+            x = self.soc1(x)
         x = channel_shuffle(x, self.groups)
         if not self.testing:
             return self.soc2(x)
