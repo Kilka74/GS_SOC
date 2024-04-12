@@ -97,8 +97,8 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, opt=None):
                 break
             loss = F.cross_entropy(output, y)
             if opt is not None:
-                with amp.scale_loss(loss, opt) as scaled_loss:
-                    scaled_loss.backward()
+                # TODO try to use this implementation or to replace it with GradScaler
+                loss.backward()
             else:
                 loss.backward()
             grad = delta.grad.detach()
@@ -157,8 +157,8 @@ def attack_pgd_l2(model, X, y, epsilon, alpha, attack_iters, restarts, opt=None)
                 break
             loss = F.cross_entropy(output, y)
             if opt is not None:
-                with amp.scale_loss(loss, opt) as scaled_loss:
-                    scaled_loss.backward()
+                # TODO try to use this implementation or to replace it with GradScaler
+                loss.backward()
             else:
                 loss.backward()
             grad = delta.grad.detach()
@@ -206,12 +206,13 @@ def evaluate_standard(test_loader, model):
     model.eval()
     with torch.no_grad():
         for i, (X, y) in enumerate(test_loader):
-            X, y = X.cuda(), y.cuda()
-            output = model(X)
-            loss = F.cross_entropy(output, y)
-            test_loss += loss.item() * y.size(0)
-            test_acc += (output.max(1)[1] == y).sum().item()
-            n += y.size(0)
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                X, y = X.cuda(), y.cuda()
+                output = model(X)
+                loss = F.cross_entropy(output, y)
+                test_loss += loss.item() * y.size(0)
+                test_acc += (output.max(1)[1] == y).sum().item()
+                n += y.size(0)
     return test_loss / n, test_acc / n
 
 

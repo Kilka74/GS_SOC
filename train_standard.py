@@ -33,17 +33,13 @@ def init_model(args):
         conv_name=args.conv_layer,
         activation_name=args.activation,
         num_classes=num_classes,
+        groups=args.groups
     )
     return model
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config", version_base=None)
 def main(args):
-
-    # if args.conv_layer == "cayley" and args.opt_level == "O2":
-    #     raise ValueError(
-    #         "O2 optimization level is incompatible with Cayley Convolution"
-    #     )
 
     args.out_dir += "_" + str(args.dataset)
     args.out_dir += "_" + str(args.model_name)
@@ -51,9 +47,6 @@ def main(args):
     args.out_dir += "_" + str(args.activation)
 
     os.makedirs(args.out_dir, exist_ok=True)
-
-    hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
-    hydra_cfg['runtime']['output_dir'] = args.out_dir
 
     logfile = os.path.join(args.out_dir, "output.log")
     if os.path.exists(logfile):
@@ -73,6 +66,9 @@ def main(args):
     train_loader, test_loader = get_loaders(
         args.data_dir, args.batch_size, args.dataset
     )
+    model = init_model(args).cuda()
+    model.train()
+
     wandb.login(key=args.wandb_key, relogin=True)
     wandb.init(
         entity="kilka74",
@@ -91,7 +87,8 @@ def main(args):
             "max_lr": args.lr_max,
             "weight_decay": args.weight_decay,
             "momentum": args.momentum,
-            "opt_level": args.opt_level
+            "opt_level": args.opt_level,
+            "number_of_parameters": sum(p.numel() for p in model.parameters())
         }
     )
 
@@ -103,9 +100,6 @@ def main(args):
     wandb.log_artifact(
         artifact
     )
-
-    model = init_model(args).cuda()
-    model.train()
 
     conv_params = []
     activation_params = []
@@ -119,7 +113,6 @@ def main(args):
             else:
                 other_params.append(param)
 
-    # if args.conv_layer in ["standard", "soc", "monarch_soc"]:
     opt = torch.optim.SGD(
         [
             {"params": activation_params, "weight_decay": 0.0},
@@ -131,20 +124,11 @@ def main(args):
         lr=args.lr_max,
         momentum=args.momentum,
     )
-    # else:
-    #     opt = torch.optim.SGD(
-    #         [
-    #             {"params": (conv_params + activation_params), "weight_decay": 0.0},
-    #             {"params": other_params, "weight_decay": args.weight_decay},
-    #         ],
-    #         lr=args.lr_max,
-    #         momentum=args.momentum,
-    #     )
 
     criterion = nn.CrossEntropyLoss()
 
     lr_steps = args.epochs * len(train_loader)
-    if args.lr_schedule == "cyclic":
+    if args.lr_scheduler == "cyclic":
         scheduler = torch.optim.lr_scheduler.CyclicLR(
             opt,
             base_lr=args.lr_min,
@@ -152,7 +136,7 @@ def main(args):
             step_size_up=lr_steps / 2,
             step_size_down=lr_steps / 2,
         )
-    elif args.lr_schedule == "multistep":
+    elif args.lr_scheduler == "multistep":
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             opt, milestones=[lr_steps // 2, (3 * lr_steps) // 4], gamma=0.1
         )
@@ -161,7 +145,6 @@ def main(args):
     last_model_path = os.path.join(args.out_dir, "last.pth")
     last_opt_path = os.path.join(args.out_dir, "last_opt.pth")
 
-    # Training
     prev_test_acc = 0.0
     start_train_time = time.time()
     logger.info(
@@ -175,7 +158,7 @@ def main(args):
         train_acc = 0
         train_n = 0
         for i, (X, y) in enumerate(train_loader):
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
                 X, y = X.cuda(), y.cuda()
 
                 output = model(X)
@@ -263,6 +246,7 @@ def main(args):
         test_acc,
         (test_time - start_test_time) / 60,
     )
+    wandb.finish()
 
 
 if __name__ == "__main__":

@@ -16,18 +16,18 @@ class PreActBlock(nn.Module):
 
     expansion = 1
 
-    def __init__(self, in_planes, planes, conv_layer, activation_name, stride=1):
+    def __init__(self, in_planes, planes, conv_layer, activation_name, groups, stride=1):
         super(PreActBlock, self).__init__()
         self.activation1 = activation_mapping(activation_name, channels=in_planes)
         self.activation2 = activation_mapping(activation_name, channels=planes)
 
         self.bn1 = nn.BatchNorm2d(in_planes)
         self.conv1 = conv_layer(
-            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+            in_planes, planes, kernel_size=3, stride=stride, groups=groups, padding=1, bias=False
         )
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv2 = conv_layer(
-            planes, planes, kernel_size=3, stride=1, padding=1, bias=False
+            planes, planes, kernel_size=3, stride=1, groups=groups, padding=1, bias=False
         )
 
         if stride != 1 or in_planes != self.expansion * planes:
@@ -37,6 +37,7 @@ class PreActBlock(nn.Module):
                     self.expansion * planes,
                     kernel_size=1,
                     stride=stride,
+                    groups=groups,
                     bias=False,
                 )
             )
@@ -55,21 +56,21 @@ class PreActBottleneck(nn.Module):
 
     expansion = 4
 
-    def __init__(self, in_planes, planes, conv_name, activation_name, stride=1):
+    def __init__(self, in_planes, planes, conv_layer, activation_name, groups, stride=1):
         super(PreActBottleneck, self).__init__()
         self.activation1 = activation_mapping(activation_name, channels=in_planes)
         self.activation2 = activation_mapping(activation_name, channels=planes)
         self.activation3 = activation_mapping(activation_name, channels=planes)
 
         self.bn1 = nn.BatchNorm2d(in_planes)
-        self.conv1 = conv_layer(in_planes, planes, kernel_size=1, bias=False)
+        self.conv1 = conv_layer(in_planes, planes, kernel_size=1, groups=groups, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv2 = conv_layer(
-            planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+            planes, planes, kernel_size=3, stride=stride, padding=1, groups=groups, bias=False
         )
         self.bn3 = nn.BatchNorm2d(planes)
         self.conv3 = conv_layer(
-            planes, self.expansion * planes, kernel_size=1, bias=False
+            planes, self.expansion * planes, kernel_size=1, groups=groups, bias=False
         )
 
         if stride != 1 or in_planes != self.expansion * planes:
@@ -78,6 +79,7 @@ class PreActBottleneck(nn.Module):
                     in_planes,
                     self.expansion * planes,
                     kernel_size=1,
+                    groups=groups,
                     stride=stride,
                     bias=False,
                 )
@@ -94,23 +96,23 @@ class PreActBottleneck(nn.Module):
 
 
 class PreActResNet(nn.Module):
-    def __init__(self, block, num_blocks, conv_name, activation_name, num_classes=10):
+    def __init__(self, block, num_blocks, conv_name, activation_name, groups, num_classes=10):
         super(PreActResNet, self).__init__()
         conv_layer = conv_mapping[conv_name]
         self.in_planes = 64
 
-        self.conv1 = conv_layer(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = conv_layer(3, 64, kernel_size=3, stride=1, padding=1, groups=groups, bias=False)
         self.layer1 = self._make_layer(
-            block, 64, num_blocks[0], conv_layer, activation_name, stride=1
+            block, 64, num_blocks[0], conv_layer, activation_name, stride=1, groups=groups,
         )
         self.layer2 = self._make_layer(
-            block, 128, num_blocks[1], conv_layer, activation_name, stride=2
+            block, 128, num_blocks[1], conv_layer, activation_name, stride=2, groups=groups,
         )
         self.layer3 = self._make_layer(
-            block, 256, num_blocks[2], conv_layer, activation_name, stride=2
+            block, 256, num_blocks[2], conv_layer, activation_name, stride=2, groups=groups,
         )
         self.layer4 = self._make_layer(
-            block, 512, num_blocks[3], conv_layer, activation_name, stride=2
+            block, 512, num_blocks[3], conv_layer, activation_name, stride=2, groups=groups
         )
 
         self.bn = nn.BatchNorm2d(512 * block.expansion)
@@ -120,13 +122,13 @@ class PreActResNet(nn.Module):
         self.linear = nn.Linear(512 * block.expansion, num_classes)
 
     def _make_layer(
-        self, block, planes, num_blocks, conv_layer, activation_name, stride
+        self, block, planes, num_blocks, conv_layer, activation_name, stride, groups
     ):
         strides = [stride] + [1] * (num_blocks - 1)
         layers = []
         for stride in strides:
             layers.append(
-                block(self.in_planes, planes, conv_layer, activation_name, stride)
+                block(self.in_planes, planes, conv_layer, activation_name, stride, groups)
             )
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
@@ -144,33 +146,33 @@ class PreActResNet(nn.Module):
         return out
 
 
-def PreActResNet18(conv_name="standard", activation_name="relu", num_classes=10):
+def PreActResNet18(conv_name="standard", activation_name="relu", groups=1, num_classes=10):
     return PreActResNet(
-        PreActBlock, [2, 2, 2, 2], conv_name, activation_name, num_classes
+        PreActBlock, [2, 2, 2, 2], conv_name, activation_name, groups, num_classes
     )
 
 
-def PreActResNet34(conv_name="standard", activation_name="relu", num_classes=10):
+def PreActResNet34(conv_name="standard", activation_name="relu", groups=1, num_classes=10):
     return PreActResNet(
-        PreActBlock, [3, 4, 6, 3], conv_name, activation_name, num_classes
+        PreActBlock, [3, 4, 6, 3], conv_name, activation_name, groups, num_classes
     )
 
 
-def PreActResNet50(conv_name="standard", activation_name="relu", num_classes=10):
+def PreActResNet50(conv_name="standard", activation_name="relu", groups=1, num_classes=10):
     return PreActResNet(
-        PreActBottleneck, [3, 4, 6, 3], conv_name, activation_name, num_classes
+        PreActBottleneck, [3, 4, 6, 3], conv_name, activation_name, groups, num_classes
     )
 
 
-def PreActResNet101(conv_name="standard", activation_name="relu", num_classes=10):
+def PreActResNet101(conv_name="standard", activation_name="relu", groups=1, num_classes=10):
     return PreActResNet(
-        PreActBottleneck, [3, 4, 23, 3], conv_name, activation_name, num_classes
+        PreActBottleneck, [3, 4, 23, 3], conv_name, activation_name, groups, num_classes
     )
 
 
-def PreActResNet152(conv_name="standard", activation_name="relu", num_classes=10):
+def PreActResNet152(conv_name="standard", activation_name="relu", groups=1, num_classes=10):
     return PreActResNet(
-        PreActBottleneck, [3, 8, 36, 3], conv_name, activation_name, num_classes
+        PreActBottleneck, [3, 8, 36, 3], conv_name, activation_name, groups, num_classes
     )
 
 
