@@ -1,0 +1,7 @@
+*.sbatch
+*.log
+*.err
+outputs
+wandb
+cifar-data
+__pycache__
