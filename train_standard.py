@@ -1,4 +1,3 @@
-import argparse
 import logging
 import os
 import time
@@ -7,7 +6,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import hydra
-from apex import amp
 from preactresnet import *
 from utils import (
     upper_limit,
@@ -143,12 +141,6 @@ def main(args):
     #         momentum=args.momentum,
     #     )
 
-    amp_args = dict(
-        opt_level=args.opt_level, loss_scale=args.loss_scale, verbosity=False
-    )
-    if args.opt_level == "O2":
-        amp_args["master_weights"] = True
-    model, opt = amp.initialize(model, opt, **amp_args)
     criterion = nn.CrossEntropyLoss()
 
     lr_steps = args.epochs * len(train_loader)
@@ -175,6 +167,7 @@ def main(args):
     logger.info(
         "Epoch \t Seconds \t LR \t Train Loss \t Train Acc \t Test Loss \t Test Acc"
     )
+    scaler = torch.cuda.amp.GradScaler()
     for epoch in range(args.epochs):
         model.train()
         start_epoch_time = time.time()
@@ -182,18 +175,19 @@ def main(args):
         train_acc = 0
         train_n = 0
         for i, (X, y) in enumerate(train_loader):
-            X, y = X.cuda(), y.cuda()
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                X, y = X.cuda(), y.cuda()
 
-            output = model(X)
-            ce_loss = criterion(output, y)
-            wandb.log({
-                "train_loss": ce_loss.item(),
-                "lr": scheduler.get_last_lr()[0]
-            })
-            opt.zero_grad()
-            with amp.scale_loss(ce_loss, opt) as scaled_loss:
-                scaled_loss.backward()
-            opt.step()
+                output = model(X)
+                ce_loss = criterion(output, y)
+                wandb.log({
+                    "train_loss": ce_loss.item(),
+                    "lr": scheduler.get_last_lr()[0]
+                })
+            opt.zero_grad(set_to_none=True)
+            scaler.scale(ce_loss).backward()
+            scaler.step(opt)
+            scaler.update()
 
             train_loss += ce_loss.item() * y.size(0)
             train_acc += (output.max(1)[1] == y).sum().item()
