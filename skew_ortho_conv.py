@@ -6,7 +6,6 @@ import numpy as np
 import einops
 
 
-# TODO change fantastic four, add groups number for each tensor
 def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     groups, out_ch, in_ch, h, w = conv_filter.shape
 
@@ -187,17 +186,11 @@ class SOC(nn.Module):
 
     def reset_parameters(self):
         stdv = 1.0 / np.sqrt(self.max_channels)
-        if not self.testing:
-            nn.init.normal_(self.random_conv_filter, std=stdv)
-        else:
-            nn.init.zeros_(self.random_conv_filter)
+        nn.init.normal_(self.random_conv_filter, std=stdv)
 
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
-            if not self.testing:
-                nn.init.uniform_(self.bias, -stdv, stdv)
-            else:
-                nn.init.zeros_(self.bias)
+            nn.init.zeros_(self.bias)
 
     def update_sigma(self):
         if self.training:
@@ -242,10 +235,10 @@ class SOC(nn.Module):
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        sigma1 = torch.sum(conv_filter * self.u1 * self.v1, dim=0)
-        sigma2 = torch.sum(conv_filter * self.u2 * self.v2, dim=0)
-        sigma3 = torch.sum(conv_filter * self.u3 * self.v3, dim=0)
-        sigma4 = torch.sum(conv_filter * self.u4 * self.v4, dim=0)
+        sigma1 = torch.sum(conv_filter * self.u1 * self.v1)
+        sigma2 = torch.sum(conv_filter * self.u2 * self.v2)
+        sigma3 = torch.sum(conv_filter * self.u3 * self.v3)
+        sigma4 = torch.sum(conv_filter * self.u4 * self.v4)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma
 
@@ -253,7 +246,7 @@ class SOC(nn.Module):
         random_conv_filter_T = transpose_filter(self.random_conv_filter)
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
-        conv_filter_n = ((self.correction * conv_filter_skew) / (sigma + 1e-12)).view(
+        conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
             self.groups * self.max_channels,
             self.max_channels,
             self.kernel_size,
@@ -294,7 +287,9 @@ class SOC(nn.Module):
 
         if self.enable_bias:
             z = z + self.bias.view(1, -1, 1, 1)
-        return z
+        if not self.testing:
+            return z
+        return z, conv_filter_n
 
 
 # https://github.com/jaxony/ShuffleNet/blob/e9bf42f0cda8dda518cafffd515654cc04584e7a/model.py#L36C1-L53C13
@@ -374,8 +369,15 @@ class MonarchSOC(nn.Module):
             testing=testing
         )
         self.groups = groups
+        self.testing = testing
 
     def forward(self, x):
-        x = self.soc1(x)
+        if self.testing:
+            x, filter_1 = self.soc1(x)
+        else:
+            x = self.soc1(x)
         x = channel_shuffle(x, self.groups)
-        return self.soc2(x)
+        if not self.testing:
+            return self.soc2(x)
+        result, filter_2 = self.soc2(x)  # for testing
+        return result, filter_1, filter_2
