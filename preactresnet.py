@@ -128,7 +128,7 @@ class PreActResNet(nn.Module):
         layers = []
         for stride in strides:
             layers.append(
-                block(self.in_planes, planes, conv_layer, activation_name, stride, groups)
+                block(self.in_planes, planes, conv_layer, activation_name, groups, stride)
             )
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
