@@ -2,10 +2,11 @@ import argparse
 import logging
 import os
 import time
-
+import wandb
 import numpy as np
 import torch
 import torch.nn as nn
+import hydra
 from apex import amp
 from preactresnet import *
 from utils import (
@@ -88,6 +89,8 @@ def get_args():
         "--out-dir", default="standard", type=str, help="Output directory"
     )
     parser.add_argument("--seed", default=0, type=int, help="Random seed")
+
+    parser.add_argument("--wandb-key", default="", type=str)
     return parser.parse_args()
 
 
@@ -106,13 +109,13 @@ def init_model(args):
     return model
 
 
-def main():
-    args = get_args()
+@hydra.main(config_path="conf", config_name="config")
+def main(args):
 
-    if args.conv_layer == "cayley" and args.opt_level == "O2":
-        raise ValueError(
-            "O2 optimization level is incompatible with Cayley Convolution"
-        )
+    # if args.conv_layer == "cayley" and args.opt_level == "O2":
+    #     raise ValueError(
+    #         "O2 optimization level is incompatible with Cayley Convolution"
+    #     )
 
     args.out_dir += "_" + str(args.dataset)
     args.out_dir += "_" + str(args.model_name)
@@ -120,6 +123,10 @@ def main():
     args.out_dir += "_" + str(args.activation)
 
     os.makedirs(args.out_dir, exist_ok=True)
+
+    hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
+    hydra_cfg['runtime']['output_dir'] = args.out_dir
+
     logfile = os.path.join(args.out_dir, "output.log")
     if os.path.exists(logfile):
         os.remove(logfile)
@@ -138,6 +145,36 @@ def main():
     train_loader, test_loader = get_loaders(
         args.data_dir, args.batch_size, args.dataset
     )
+    wandb.login(key=args.wandb_key, relogin=True)
+    wandb.init(
+        entity="kilka74",
+        project="MonarchSOC",
+        name=f"{args.model_name} with {args.conv_layer} on {args.dataset}",
+        config={
+            "batch_size": args.batch_size,
+            "epochs": args.epochs,
+            "lr_scheduler": args.lr_scheduler,
+            "model_name": args.model_name,
+            "dataset": args.dataset,
+            "seed": args.seed,
+            "activation": args.activation,
+            "conv_layer": args.conv_layer,
+            "min_lr": args.lr_min,
+            "max_lr": args.lr_max,
+            "weight_decay": args.weight_decay,
+            "momentum": args.momentum,
+            "opt_level": args.opt_level
+        }
+    )
+
+    artifact = wandb.Artifact(
+        name="run_config",
+        type="config",
+    )
+    artifact.add_file(f"{hydra.core.hydra_config.HydraConfig.get().runtime.output_dir}/.hydra/config.yaml")
+    wandb.log_artifact(
+        artifact
+    )
 
     model = init_model(args).cuda()
     model.train()
@@ -154,27 +191,27 @@ def main():
             else:
                 other_params.append(param)
 
-    if args.conv_layer in ["standard", "soc"]:
-        opt = torch.optim.SGD(
-            [
-                {"params": activation_params, "weight_decay": 0.0},
-                {
-                    "params": (conv_params + other_params),
-                    "weight_decay": args.weight_decay,
-                },
-            ],
-            lr=args.lr_max,
-            momentum=args.momentum,
-        )
-    else:
-        opt = torch.optim.SGD(
-            [
-                {"params": (conv_params + activation_params), "weight_decay": 0.0},
-                {"params": other_params, "weight_decay": args.weight_decay},
-            ],
-            lr=args.lr_max,
-            momentum=args.momentum,
-        )
+    # if args.conv_layer in ["standard", "soc", "monarch_soc"]:
+    opt = torch.optim.SGD(
+        [
+            {"params": activation_params, "weight_decay": 0.0},
+            {
+                "params": (conv_params + other_params),
+                "weight_decay": args.weight_decay,
+            },
+        ],
+        lr=args.lr_max,
+        momentum=args.momentum,
+    )
+    # else:
+    #     opt = torch.optim.SGD(
+    #         [
+    #             {"params": (conv_params + activation_params), "weight_decay": 0.0},
+    #             {"params": other_params, "weight_decay": args.weight_decay},
+    #         ],
+    #         lr=args.lr_max,
+    #         momentum=args.momentum,
+    #     )
 
     amp_args = dict(
         opt_level=args.opt_level, loss_scale=args.loss_scale, verbosity=False
@@ -219,7 +256,10 @@ def main():
 
             output = model(X)
             ce_loss = criterion(output, y)
-
+            wandb.log({
+                "train_loss": ce_loss.item(),
+                "lr": scheduler.get_last_lr()[0]
+            })
             opt.zero_grad()
             with amp.scale_loss(ce_loss, opt) as scaled_loss:
                 scaled_loss.backward()
@@ -250,7 +290,12 @@ def main():
             test_loss,
             test_acc,
         )
-
+        wandb.log({
+            "train_acc": train_acc / train_n,
+            "test_loss": test_loss,
+            "test_acc": test_acc,
+            "epoch_time": epoch_time - start_epoch_time
+        })
         torch.save(model.state_dict(), last_model_path)
 
         trainer_state_dict = {"epoch": epoch, "optimizer_state_dict": opt.state_dict()}

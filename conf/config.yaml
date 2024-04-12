@@ -1,0 +1,19 @@
+defaults:
+  - wandb_key: 
+  - batch_size: 128
+  - epochs: 200
+  - lr_schedule: multistep
+  - lr_min: 0.0
+  - lr_max: 0.1
+  - weight_decay: 5e-4 
+  - momentum: 0.9
+  - opt_level: O2
+  - loss_scale: "1.0"
+  - model_name: resnet18
+  - conv_layer: "standard"
+  - activation: relu
+  - data_dir: "./cifar-data"
+  - dataset: "cifar10"
+  - out_dir: "standard"
+  - seed: 0
+  - _self_
