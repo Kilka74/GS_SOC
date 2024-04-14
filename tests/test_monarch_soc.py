@@ -1,7 +1,7 @@
 import pytest
 import torch
 import torch.nn.functional as F
-from skew_ortho_conv import MonarchSOC, channel_shuffle
+from skew_ortho_conv import MonarchSOC, OriginalSOC, SOC, channel_shuffle
 
 
 @torch.no_grad()
@@ -49,3 +49,25 @@ def test_monarch_soc(device, groups):
         x = x + curr_x
     assert res.shape == x.shape
     assert torch.allclose(x, res), torch.norm(res - x)
+
+
+@torch.no_grad()
+@pytest.mark.parametrize(
+    ["device"],
+    [
+        ["cpu"]
+    ]
+)
+def test_compare_to_original(device):
+    kernel = torch.normal(0, 0.125, size=(64, 64, 3, 3))
+    x = torch.randn(4, 64, 64, 64)
+    original = OriginalSOC(
+        tensor=kernel, in_channels=64, out_channels=64, bias=False, device=device
+    )
+    my = SOC(
+        in_channels=64, out_channels=64, bias=False, device="cpu", testing=True, tensor=kernel
+    )
+    original_res = original(x)
+    my_res = my(x)
+    assert original_res.shape == my_res.shape
+    assert torch.allclose(original_res, my_res), torch.norm(original_res - my_res)

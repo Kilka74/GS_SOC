@@ -4,4 +4,7 @@
 outputs
 wandb
 cifar-data
+cifar-data-soc
 __pycache__
+*.pth
+multirun

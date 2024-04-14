@@ -43,8 +43,9 @@ def main(args):
 
     args.out_dir += "_" + str(args.dataset)
     args.out_dir += "_" + str(args.model_name)
-    args.out_dir += "_" + str(args.conv_layer)
     args.out_dir += "_" + str(args.activation)
+    args.out_dir += "_" + str(args.conv_layer)
+    args.out_dir += "_" + str(args.groups)
 
     os.makedirs(args.out_dir, exist_ok=True)
 
@@ -73,7 +74,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"{args.model_name} with {args.conv_layer} on {args.dataset}",
+        name=f"{args.model_name} with {args.conv_layer}, groups={args.groups} on {args.dataset}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -87,7 +88,6 @@ def main(args):
             "max_lr": args.lr_max,
             "weight_decay": args.weight_decay,
             "momentum": args.momentum,
-            "opt_level": args.opt_level,
             "number_of_parameters": sum(p.numel() for p in model.parameters())
         }
     )
@@ -138,7 +138,7 @@ def main(args):
         )
     elif args.lr_scheduler == "multistep":
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            opt, milestones=[lr_steps // 2, (3 * lr_steps) // 4], gamma=0.1
+            opt, milestones=[lr_steps // 4, (3 * lr_steps) // 4], gamma=0.1
         )
 
     best_model_path = os.path.join(args.out_dir, "best.pth")
@@ -158,19 +158,21 @@ def main(args):
         train_acc = 0
         train_n = 0
         for i, (X, y) in enumerate(train_loader):
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                X, y = X.cuda(), y.cuda()
+            # with torch.autocast(device_type="cuda", dtype=torch.float16):
+            X, y = X.cuda(), y.cuda()
 
-                output = model(X)
-                ce_loss = criterion(output, y)
-                wandb.log({
-                    "train_loss": ce_loss.item(),
-                    "lr": scheduler.get_last_lr()[0]
-                })
+            output = model(X)
+            ce_loss = criterion(output, y)
+            wandb.log({
+                "train_loss": ce_loss.item(),
+                "lr": scheduler.get_last_lr()[0]
+            })
             opt.zero_grad(set_to_none=True)
-            scaler.scale(ce_loss).backward()
-            scaler.step(opt)
-            scaler.update()
+            ce_loss.backward()
+            opt.step()
+            # scaler.scale(ce_loss).backward()
+            # scaler.step(opt)
+            # scaler.update()
 
             train_loss += ce_loss.item() * y.size(0)
             train_acc += (output.max(1)[1] == y).sum().item()
