@@ -61,8 +61,9 @@ def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     return u1, v1, u2, v2, u3, v3, u4, v4
 
 
+# Probably bad normalization because of norm computation
 def l2_normalize(tensor, eps=1e-12):
-    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=0))
+    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=(1, 2), keepdim=True))
     norm = torch.max(norm, torch.tensor([eps], device=norm.device))
     ans = tensor / norm
     return ans

@@ -87,7 +87,6 @@ def main(args):
             "max_lr": args.lr_max,
             "weight_decay": args.weight_decay,
             "momentum": args.momentum,
-            "opt_level": args.opt_level,
             "number_of_parameters": sum(p.numel() for p in model.parameters())
         }
     )
@@ -138,7 +137,7 @@ def main(args):
         )
     elif args.lr_scheduler == "multistep":
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            opt, milestones=[lr_steps // 2, (3 * lr_steps) // 4], gamma=0.1
+            opt, milestones=[lr_steps // 4, (3 * lr_steps) // 4], gamma=0.1
         )
 
     best_model_path = os.path.join(args.out_dir, "best.pth")

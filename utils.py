@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 import math
 from skew_ortho_conv import SOC, MonarchSOC
+from original_soc import SOC as OriginalSOC
 from custom_activations import MaxMin, HouseHolder, HouseHolder_Order_2
 
 cifar10_mean = (0.4914, 0.4822, 0.4465)
@@ -285,7 +286,7 @@ def evaluate_certificates(test_loader, model, L, epsilon=36.0):
 # from cayley_ortho_conv import Cayley, CayleyLinear
 # from block_ortho_conv import BCOP
 
-conv_mapping = {"standard": nn.Conv2d, "soc": SOC, "monarch_soc": MonarchSOC}
+conv_mapping = {"standard": nn.Conv2d, "soc": SOC, "monarch_soc": MonarchSOC, "original_soc": OriginalSOC}
 
 
 activation_dict = {

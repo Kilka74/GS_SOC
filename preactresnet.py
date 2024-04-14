@@ -7,6 +7,7 @@ Reference:
 import torch.nn as nn
 import torch.nn.functional as F
 from skew_ortho_conv import SOC, MonarchSOC
+from original_soc import SOC as OriginalSOC
 from custom_activations import *
 from utils import conv_mapping, activation_mapping
 
