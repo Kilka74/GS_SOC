@@ -63,7 +63,9 @@ def fantastic_four(conv_filter, num_iters=50, device="cuda"):
 
 # Probably bad normalization because of norm computation
 def l2_normalize(tensor, eps=1e-12):
-    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=(1, 2), keepdim=True))
+    ndims = torch.ndim(tensor)
+    dims = tuple(torch.arange(1, ndims))
+    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
     norm = torch.max(norm, torch.tensor([eps], device=norm.device))
     ans = tensor / norm
     return ans
@@ -236,10 +238,11 @@ class SOC(nn.Module):
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        sigma1 = torch.sum(conv_filter * self.u1 * self.v1)
-        sigma2 = torch.sum(conv_filter * self.u2 * self.v2)
-        sigma3 = torch.sum(conv_filter * self.u3 * self.v3)
-        sigma4 = torch.sum(conv_filter * self.u4 * self.v4)
+        dims = (1, 2, 3, 4)
+        sigma1 = torch.sum(conv_filter * self.u1 * self.v1, dim=dims, keepdim=True)
+        sigma2 = torch.sum(conv_filter * self.u2 * self.v2, dim=dims, keepdim=True)
+        sigma3 = torch.sum(conv_filter * self.u3 * self.v3, dim=dims, keepdim=True)
+        sigma4 = torch.sum(conv_filter * self.u4 * self.v4, dim=dims, keepdim=True)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma
 
