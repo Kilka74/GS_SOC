@@ -361,7 +361,7 @@ class MonarchSOC(nn.Module):
             stride=stride,
             padding=padding,
             bias=bias,
-            groups=groups,
+            groups=out_channels//groups, # fix for correct intuition in number of blocks
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -373,6 +373,7 @@ class MonarchSOC(nn.Module):
         )
         self.groups = groups
         self.testing = testing
+        self.out_channels = out_channels
 
     def forward(self, x):
         if self.testing:
@@ -381,6 +382,6 @@ class MonarchSOC(nn.Module):
             x = self.soc1(x)
         x = channel_shuffle(x, self.groups)
         if not self.testing:
-            return self.soc2(x)
+            return channel_shuffle(self.soc2(x), self.out_channels // self.groups)
         result, filter_2 = self.soc2(x)  # for testing
-        return result, filter_1, filter_2
+        return channel_shuffle(result, self.out_channels // self.groups), filter_1, filter_2
