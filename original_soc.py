@@ -91,7 +91,7 @@ class SOC(nn.Module):
                  bias=True, train_terms=5, eval_terms=12, init_iters=50, update_iters=1, 
                  update_freq=200, correction=0.7, groups=1):
         super(SOC, self).__init__()
-        print("original SOC is using")
+        print("Original SOC is using")
         assert (stride==1) or (stride==2)
         self.init_iters = init_iters
         self.out_channels = out_channels

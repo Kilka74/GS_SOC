@@ -98,7 +98,6 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, opt=None):
                 break
             loss = F.cross_entropy(output, y)
             if opt is not None:
-                # TODO try to use this implementation or to replace it with GradScaler
                 loss.backward()
             else:
                 loss.backward()
@@ -158,7 +157,6 @@ def attack_pgd_l2(model, X, y, epsilon, alpha, attack_iters, restarts, opt=None)
                 break
             loss = F.cross_entropy(output, y)
             if opt is not None:
-                # TODO try to use this implementation or to replace it with GradScaler
                 loss.backward()
             else:
                 loss.backward()

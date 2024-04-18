@@ -61,9 +61,10 @@ def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     return u1, v1, u2, v2, u3, v3, u4, v4
 
 
-# Probably bad normalization because of norm computation
 def l2_normalize(tensor, eps=1e-12):
-    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=(1, 2), keepdim=True))
+    ndims = tensor.dim()
+    dims = tuple(torch.arange(1, ndims))
+    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
     norm = torch.max(norm, torch.tensor([eps], device=norm.device))
     ans = tensor / norm
     return ans
@@ -236,10 +237,11 @@ class SOC(nn.Module):
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        sigma1 = torch.sum(conv_filter * self.u1 * self.v1)
-        sigma2 = torch.sum(conv_filter * self.u2 * self.v2)
-        sigma3 = torch.sum(conv_filter * self.u3 * self.v3)
-        sigma4 = torch.sum(conv_filter * self.u4 * self.v4)
+        dims = (1, 2, 3, 4)
+        sigma1 = torch.sum(conv_filter * self.u1 * self.v1, dim=dims, keepdim=True)
+        sigma2 = torch.sum(conv_filter * self.u2 * self.v2, dim=dims, keepdim=True)
+        sigma3 = torch.sum(conv_filter * self.u3 * self.v3, dim=dims, keepdim=True)
+        sigma4 = torch.sum(conv_filter * self.u4 * self.v4, dim=dims, keepdim=True)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma
 
@@ -356,10 +358,10 @@ class MonarchSOC(nn.Module):
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
-            stride=stride,
+            stride=1,
             padding=padding,
             bias=bias,
-            groups=groups,
+            groups=out_channels//groups, # fix for correct intuition in number of blocks
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -371,6 +373,7 @@ class MonarchSOC(nn.Module):
         )
         self.groups = groups
         self.testing = testing
+        self.out_channels = out_channels
 
     def forward(self, x):
         if self.testing:
@@ -379,6 +382,6 @@ class MonarchSOC(nn.Module):
             x = self.soc1(x)
         x = channel_shuffle(x, self.groups)
         if not self.testing:
-            return self.soc2(x)
+            return channel_shuffle(self.soc2(x), self.out_channels // self.groups)
         result, filter_2 = self.soc2(x)  # for testing
-        return result, filter_1, filter_2
+        return channel_shuffle(result, self.out_channels // self.groups), filter_1, filter_2
