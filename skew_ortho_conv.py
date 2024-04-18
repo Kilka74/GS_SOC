@@ -358,7 +358,7 @@ class MonarchSOC(nn.Module):
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
-            stride=stride,
+            stride=1,
             padding=padding,
             bias=bias,
             groups=out_channels//groups, # fix for correct intuition in number of blocks

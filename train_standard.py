@@ -45,6 +45,8 @@ def main(args):
     args.out_dir += "_" + str(args.model_name)
     args.out_dir += "_" + str(args.conv_layer)
     args.out_dir += "_" + str(args.activation)
+    args.out_dir += "_" + str(args.groups)
+    args.out_dir += "_" + str(args.weight_decay)
 
     os.makedirs(args.out_dir, exist_ok=True)
 
@@ -73,7 +75,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"{args.model_name} with {args.conv_layer} on {args.dataset}",
+        name=f"float16 {args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -87,7 +89,9 @@ def main(args):
             "max_lr": args.lr_max,
             "weight_decay": args.weight_decay,
             "momentum": args.momentum,
-            "number_of_parameters": sum(p.numel() for p in model.parameters())
+            "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
+            "number of all parameters": sum(p.numel() for p in model.parameters()),
+            "groups": args.groups
         }
     )
 
