@@ -2,17 +2,20 @@ batch_size: 128
 epochs: 200
 lr_min: 0.0
 lr_max: 0.1
-weight_decay: 5e-4 
 momentum: 0.9
-seed: 0
-out_dir: standard
+seed: 42
+out_dir: standard_with_better_conv
 dataset: cifar10
 data_dir: ./cifar-data
-wandb_key: 
+wandb_key: 9f8480fbfcfd1d06b91b59aa5d23ed5482fdee2e
 lr_scheduler: multistep
-opt_level: O2
-loss_scale: "1.0"
 model_name: resnet18
-conv_layer: standard
 activation: relu
-groups: 1
+weight_decay: 5e-4
+conv_layer: monarch_soc
+groups: 16
+# hydra:
+#   mode: MULTIRUN
+#   sweeper:
+#     params:
+#       +groups: 4, 8, 16, 32

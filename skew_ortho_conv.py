@@ -76,6 +76,28 @@ def transpose_filter(conv_filter):
     return conv_filter_T
 
 
+def run_in_streams(convs, x, num_terms, device="cuda"):
+    out = []
+    groups = convs.shape[0]
+    kernel_size = convs.shape[-1]
+    in_channels_per_group = convs.shape[1]
+    for ind, stream in enumerate([torch.cuda.Stream(device) for _ in range(groups)]):
+        with torch.cuda.stream(stream):
+            res = x[:, ind*in_channels_per_group:(ind+1)*in_channels_per_group]
+            curr_res = res
+            for i in range(1, num_terms + 1):
+                curr_res = F.conv2d(
+                    curr_res,
+                    convs[ind, ...].squeeze(),
+                    padding=(kernel_size // 2, kernel_size // 2),
+                    groups=1
+                ) / float(i)
+            res = res + curr_res
+            out.append(res)
+    torch.cuda.synchronize()
+    return torch.cat(out, dim=1)
+
+
 class SOC_Function(Function):
     @staticmethod
     def forward(ctx, curr_z, conv_filter):
@@ -249,12 +271,8 @@ class SOC(nn.Module):
         random_conv_filter_T = transpose_filter(self.random_conv_filter)
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
-        conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
-            self.groups * self.max_channels,
-            self.max_channels,
-            self.kernel_size,
-            self.kernel_size,
-        )  # add here 1e-12 to sigma to avoid zero division
+        # sigma = 1
+        conv_filter_n = ((self.correction * conv_filter_skew) / sigma)
         if self.training:
             num_terms = self.train_terms
         else:
@@ -276,14 +294,7 @@ class SOC(nn.Module):
             curr_z = x
 
         z = curr_z
-        for i in range(1, num_terms + 1):
-            curr_z = F.conv2d(
-                curr_z,
-                conv_filter_n,
-                padding=(self.kernel_size // 2, self.kernel_size // 2),
-                groups=self.groups,
-            ) / float(i)
-            z = z + curr_z
+        z = run_in_streams(conv_filter_n, z, num_terms, self.device)
 
         if self.out_channels < self.in_channels:
             z = z[:, :self.out_channels, :, :]
