@@ -88,7 +88,7 @@ def run_in_streams(convs, x, num_terms, device="cuda"):
             for i in range(1, num_terms + 1):
                 curr_res = F.conv2d(
                     curr_res,
-                    convs[ind, ...].squeeze(),
+                    convs[ind, ...].squeeze(0),
                     padding=(kernel_size // 2, kernel_size // 2),
                     groups=1
                 ) / float(i)
