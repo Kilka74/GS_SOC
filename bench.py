@@ -43,7 +43,6 @@ def warmup():
     torch.cuda.empty_cache()
 
 
-
 @hydra.main(config_path="conf", config_name="config", version_base=None)
 def main(args):
 
@@ -111,6 +110,6 @@ def main(args):
             print(f"Conv: {args.conv_layer}, groups: {args.groups}, time: {time}")
 
 
-if __name__ == "main":
+if __name__ == "__main__":
     main()
 
