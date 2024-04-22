@@ -6,76 +6,90 @@ import numpy as np
 import einops
 
 
-@torch.no_grad()
-def fantastic_four(conv_filter, num_iters=50, device="cuda"):
-    groups, out_ch, in_ch, h, w = conv_filter.shape
+def power_iteration(W, u=None, v=None, num_iters=1):
+    if u is None:
+        u = torch.randn(W.shape[0], W.shape[2], 1, device='cuda', requires_grad=False)
+        u.data = F.normalize(u.data, dim=0)
 
-    u1 = torch.randn((groups, 1, in_ch, 1, w), device=device, requires_grad=False)
-    u1.data = l2_normalize(u1.data)
-
-    u2 = torch.randn((groups, 1, in_ch, h, 1), device=device, requires_grad=False)
-    u2.data = l2_normalize(u2.data)
-
-    u3 = torch.randn((groups, 1, in_ch, h, w), device=device, requires_grad=False)
-    u3.data = l2_normalize(u3.data)
-
-    u4 = torch.randn((groups, out_ch, 1, h, w), device=device, requires_grad=False)
-    u4.data = l2_normalize(u4.data)
-
-    v1 = torch.randn((groups, out_ch, 1, h, 1), device=device, requires_grad=False)
-    v1.data = l2_normalize(v1.data)
-
-    v2 = torch.randn((groups, out_ch, 1, 1, w), device=device, requires_grad=False)
-    v2.data = l2_normalize(v2.data)
-
-    v3 = torch.randn((groups, out_ch, 1, 1, 1), device=device, requires_grad=False)
-    v3.data = l2_normalize(v3.data)
-
-    v4 = torch.randn((groups, 1, in_ch, 1, 1), device=device, requires_grad=False)
-    v4.data = l2_normalize(v4.data)
-
+        v = torch.randn(W.shape[0], W.shape[1], 1, device='cuda', requires_grad=False)
+        v.data = F.normalize(v.data, dim=0)
     for i in range(num_iters):
-        v1.data = l2_normalize(
-            (conv_filter.data * u1.data).sum((2, 4), keepdim=True).data
-        )
-        u1.data = l2_normalize(
-            (conv_filter.data * v1.data).sum((1, 3), keepdim=True).data
-        )
-
-        v2.data = l2_normalize(
-            (conv_filter.data * u2.data).sum((2, 3), keepdim=True).data
-        )
-        u2.data = l2_normalize(
-            (conv_filter.data * v2.data).sum((1, 4), keepdim=True).data
-        )
-
-        v3.data = l2_normalize(
-            (conv_filter.data * u3.data).sum((2, 3, 4), keepdim=True).data
-        )
-        u3.data = l2_normalize((conv_filter.data * v3.data).sum(1, keepdim=True).data)
-
-        v4.data = l2_normalize(
-            (conv_filter.data * u4.data).sum((1, 3, 4), keepdim=True).data
-        )
-        u4.data = l2_normalize((conv_filter.data * v4.data).sum(2, keepdim=True).data)
-
-    return u1, v1, u2, v2, u3, v3, u4, v4
-
-
-@torch.no_grad()
-def l2_normalize(tensor, eps=1e-12):
-    ndims = tensor.dim()
-    dims = tuple(torch.arange(1, ndims))
-    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
-    norm = torch.max(norm, torch.tensor([eps], device=norm.device))
-    ans = tensor / norm
-    return ans
+        v.data = F.normalize(torch.matmul(W.data, u.data), dim=0)
+        u.data = F.normalize(torch.matmul(torch.transpose(W.data, 1, 2), v.data), dim=0)
+    return u, v
 
 
 def transpose_filter(conv_filter):
     conv_filter_T = torch.transpose(conv_filter, 1, 2)
     conv_filter_T = torch.flip(conv_filter_T, [3, 4])
     return conv_filter_T
+
+
+class ConvFilterNorm(nn.Module):
+    def __init__(self):
+        super(ConvFilterNorm, self).__init__()
+        self.u1, self.u2, self.u3, self.u4 = None, None, None, None
+        self.v1, self.v2, self.v3, self.v4 = None, None, None, None
+        # self.name = name
+        # self.num_iters = num_iters
+        # self.init_filter = conv_filter.clone().detach()
+        # self.conv_filter = conv_filter
+
+        # with torch.no_grad():
+        #     matrix1, matrix2, matrix3, matrix4 = self._conv_matrices(conv_filter)
+
+        #     u1, v1 = power_iteration(matrix1, num_iters=init_iters)
+        #     self.u1 = u1
+        #     self.v1 = v1
+
+        #     u2, v2 = power_iteration(matrix2, num_iters=init_iters)
+        #     self.u2 = u2
+        #     self.v2 = v2
+
+        #     u3, v3 = power_iteration(matrix3, num_iters=init_iters)
+        #     self.u3 = u3
+        #     self.v3 = v3
+
+        #     u4, v4 = power_iteration(matrix4, num_iters=init_iters)
+        #     self.u4 = u4
+        #     self.v4 = v4
+
+    def _conv_matrices(self, conv_filter):
+        groups, out_ch, in_ch, h, w = conv_filter.shape
+        
+        transpose1 = torch.transpose(conv_filter, 2, 3)
+        matrix1 = transpose1.reshape(groups, out_ch*h, in_ch*w)
+
+        transpose2 = torch.transpose(conv_filter, 2, 4)
+        matrix2 = transpose2.reshape(groups, out_ch*w, in_ch*h)
+
+        matrix3 = conv_filter.view(groups, out_ch, in_ch*h*w)
+
+        transpose4 = torch.transpose(conv_filter, 1, 2)
+        matrix4 = transpose4.reshape(groups, in_ch, out_ch*h*w)
+
+        return matrix1, matrix2, matrix3, matrix4
+
+    @torch.no_grad()
+    def forward(self, conv_filter, num_iters):
+        # conv_filter = self.conv_filter
+        _, _, h, w = conv_filter.shape
+        
+        matrix1, matrix2, matrix3, matrix4 = self._conv_matrices(conv_filter)
+        
+        with torch.no_grad():
+            self.u1.data, self.v1.data = power_iteration(matrix1.data, self.u1, self.v1, num_iters)
+            self.u2.data, self.v2.data = power_iteration(matrix2.data, self.u2, self.v2, num_iters)
+            self.u3.data, self.v3.data = power_iteration(matrix3.data, self.u3, self.v3, num_iters)
+            self.u4.data, self.v4.data = power_iteration(matrix4.data, self.u4, self.v4, num_iters)
+    
+        sigma1 = torch.matmul(self.v1.transpose(1, 2), torch.matmul(matrix1, self.u1))
+        sigma2 = torch.matmul(self.v2.transpose(1, 2), torch.matmul(matrix2, self.u2))
+        sigma3 = torch.matmul(self.v3.transpose(1, 2), torch.matmul(matrix3, self.u3)) 
+        sigma4 = torch.matmul(self.v4.transpose(1, 2), torch.matmul(matrix4, self.u4))
+        
+        sigma = torch.min(torch.min(torch.min(sigma1, sigma2), sigma3), sigma4) #  removed multiplication by sqrt(h*w)
+        return sigma
 
 
 class SOC_Function(Function):
@@ -159,21 +173,8 @@ class SOC(nn.Module):
             ),
             requires_grad=True,
         )
-        random_conv_filter_T = transpose_filter(self.random_conv_filter)
-        conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
 
-        with torch.no_grad():
-            u1, v1, u2, v2, u3, v3, u4, v4 = fantastic_four(
-                conv_filter, num_iters=self.init_iters, device=self.device
-            )
-            self.u1 = nn.Parameter(u1, requires_grad=False)
-            self.v1 = nn.Parameter(v1, requires_grad=False)
-            self.u2 = nn.Parameter(u2, requires_grad=False)
-            self.v2 = nn.Parameter(v2, requires_grad=False)
-            self.u3 = nn.Parameter(u3, requires_grad=False)
-            self.v3 = nn.Parameter(v3, requires_grad=False)
-            self.u4 = nn.Parameter(u4, requires_grad=False)
-            self.v4 = nn.Parameter(v4, requires_grad=False)
+        self.conv_filter_norm = ConvFilterNorm(init_iters=self.init_iters, num_iters=self.update_iters)
 
         self.correction = nn.Parameter(
             torch.tensor([correction], device=self.device), requires_grad=False
@@ -210,42 +211,7 @@ class SOC(nn.Module):
         conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         # pad_size = conv_filter.shape[2] // 2
         with torch.no_grad():
-            for i in range(update_iters):
-                self.v1.data = l2_normalize(
-                    (conv_filter * self.u1).sum((2, 4), keepdim=True).data
-                )
-                self.u1.data = l2_normalize(
-                    (conv_filter * self.v1).sum((1, 3), keepdim=True).data
-                )
-                self.v2.data = l2_normalize(
-                    (conv_filter * self.u2).sum((2, 3), keepdim=True).data
-                )
-                self.u2.data = l2_normalize(
-                    (conv_filter * self.v2).sum((1, 4), keepdim=True).data
-                )
-                self.v3.data = l2_normalize(
-                    (conv_filter * self.u3).sum((2, 3, 4), keepdim=True).data
-                )
-                self.u3.data = l2_normalize(
-                    (conv_filter * self.v3).sum(1, keepdim=True).data
-                )
-                self.v4.data = l2_normalize(
-                    (conv_filter * self.u4).sum((1, 3, 4), keepdim=True).data
-                )
-                self.u4.data = l2_normalize(
-                    (conv_filter * self.v4).sum(2, keepdim=True).data
-                )
-
-        func = torch.min
-        # add sum by dimension because we deal with 5-dimensional tensor and we want
-        # to compute approximation for each group separately
-        dims = (1, 2, 3, 4)
-        sigma1 = torch.sum(conv_filter * self.u1 * self.v1, dim=dims, keepdim=True)
-        sigma2 = torch.sum(conv_filter * self.u2 * self.v2, dim=dims, keepdim=True)
-        sigma3 = torch.sum(conv_filter * self.u3 * self.v3, dim=dims, keepdim=True)
-        sigma4 = torch.sum(conv_filter * self.u4 * self.v4, dim=dims, keepdim=True)
-        sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
-        return sigma
+            return self.conv_filter_norm(conv_filter, update_iters)
 
     def forward(self, x):
         random_conv_filter_T = transpose_filter(self.random_conv_filter).contiguous()
@@ -257,7 +223,7 @@ class SOC(nn.Module):
             self.max_channels,
             self.kernel_size,
             self.kernel_size,
-        ).contiguous()  # add here 1e-12 to sigma to avoid zero division
+        ).contiguous()
         if self.training:
             num_terms = self.train_terms
         else:
