@@ -206,7 +206,6 @@ class SOC(nn.Module):
             self.total_iters = self.total_iters + 1
         else:
             update_iters = 0
-
         random_conv_filter_T = transpose_filter(self.random_conv_filter)
         conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         # pad_size = conv_filter.shape[2] // 2
@@ -249,15 +248,16 @@ class SOC(nn.Module):
         return sigma
 
     def forward(self, x):
-        random_conv_filter_T = transpose_filter(self.random_conv_filter)
+        random_conv_filter_T = transpose_filter(self.random_conv_filter).contiguous()
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
+        # sigma = 1
         conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
             self.groups * self.max_channels,
             self.max_channels,
             self.kernel_size,
             self.kernel_size,
-        )  # add here 1e-12 to sigma to avoid zero division
+        ).contiguous()  # add here 1e-12 to sigma to avoid zero division
         if self.training:
             num_terms = self.train_terms
         else:
@@ -313,7 +313,7 @@ def channel_shuffle(x, groups):
     x = torch.transpose(x, 1, 2).contiguous()
 
     # flatten
-    x = x.view(batchsize, -1, height, width)
+    x = x.view(batchsize, -1, height, width).contiguous()
 
     return x
 
