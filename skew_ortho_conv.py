@@ -194,6 +194,7 @@ class SOC(nn.Module):
         if self.bias is not None:
             nn.init.zeros_(self.bias)
 
+    @torch.no_grad()
     def update_sigma(self):
         if self.training:
             if self.total_iters % self.update_freq == 0:
