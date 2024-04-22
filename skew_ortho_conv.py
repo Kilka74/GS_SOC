@@ -26,33 +26,33 @@ def transpose_filter(conv_filter):
 
 
 class ConvFilterNorm(nn.Module):
-    def __init__(self):
+    def __init__(self, conv_filter):
         super(ConvFilterNorm, self).__init__()
         self.u1, self.u2, self.u3, self.u4 = None, None, None, None
         self.v1, self.v2, self.v3, self.v4 = None, None, None, None
         # self.name = name
         # self.num_iters = num_iters
         # self.init_filter = conv_filter.clone().detach()
-        # self.conv_filter = conv_filter
+        conv = conv_filter.clone().detach()
 
-        # with torch.no_grad():
-        #     matrix1, matrix2, matrix3, matrix4 = self._conv_matrices(conv_filter)
+        with torch.no_grad():
+            matrix1, matrix2, matrix3, matrix4 = self._conv_matrices(conv)
 
-        #     u1, v1 = power_iteration(matrix1, num_iters=init_iters)
-        #     self.u1 = u1
-        #     self.v1 = v1
+            u1, v1 = power_iteration(matrix1)
+            self.u1 = u1
+            self.v1 = v1
 
-        #     u2, v2 = power_iteration(matrix2, num_iters=init_iters)
-        #     self.u2 = u2
-        #     self.v2 = v2
+            u2, v2 = power_iteration(matrix2)
+            self.u2 = u2
+            self.v2 = v2
 
-        #     u3, v3 = power_iteration(matrix3, num_iters=init_iters)
-        #     self.u3 = u3
-        #     self.v3 = v3
+            u3, v3 = power_iteration(matrix3)
+            self.u3 = u3
+            self.v3 = v3
 
-        #     u4, v4 = power_iteration(matrix4, num_iters=init_iters)
-        #     self.u4 = u4
-        #     self.v4 = v4
+            u4, v4 = power_iteration(matrix4)
+            self.u4 = u4
+            self.v4 = v4
 
     def _conv_matrices(self, conv_filter):
         groups, out_ch, in_ch, h, w = conv_filter.shape
@@ -73,7 +73,7 @@ class ConvFilterNorm(nn.Module):
     @torch.no_grad()
     def forward(self, conv_filter, num_iters):
         # conv_filter = self.conv_filter
-        _, _, h, w = conv_filter.shape
+        _, _, _, h, w = conv_filter.shape
         
         matrix1, matrix2, matrix3, matrix4 = self._conv_matrices(conv_filter)
         
@@ -89,7 +89,7 @@ class ConvFilterNorm(nn.Module):
         sigma4 = torch.matmul(self.v4.transpose(1, 2), torch.matmul(matrix4, self.u4))
         
         sigma = torch.min(torch.min(torch.min(sigma1, sigma2), sigma3), sigma4) #  removed multiplication by sqrt(h*w)
-        return sigma
+        return sigma.view(-1, 1, 1, 1, 1)
 
 
 class SOC_Function(Function):
@@ -173,8 +173,9 @@ class SOC(nn.Module):
             ),
             requires_grad=True,
         )
-
-        self.conv_filter_norm = ConvFilterNorm(init_iters=self.init_iters, num_iters=self.update_iters)
+        random_conv_filter_T = transpose_filter(self.random_conv_filter)
+        conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
+        self.conv_filter_norm = ConvFilterNorm(conv_filter)
 
         self.correction = nn.Parameter(
             torch.tensor([correction], device=self.device), requires_grad=False
