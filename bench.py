@@ -29,7 +29,7 @@ def fwd(model, opt, X, y):
     output = model(X)
     ce_loss = criterion(output, y)
     opt.zero_grad(set_to_none=True)
-    ce_loss.bacward()
+    ce_loss.backward()
     opt.step()
 
 
@@ -90,7 +90,7 @@ def main(args):
 
             lr_steps = args.epochs * len(train_loader)
             
-            X, y = next(train_loader)
+            X, y = next(iter(train_loader))
             X, y = X.cuda(), y.cuda()
 
             t0 = benchmark.Timer(stmt="bench(model, opt, X, y)", globals={

@@ -6,6 +6,7 @@ import numpy as np
 import einops
 
 
+@torch.no_grad()
 def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     groups, out_ch, in_ch, h, w = conv_filter.shape
 
@@ -61,6 +62,7 @@ def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     return u1, v1, u2, v2, u3, v3, u4, v4
 
 
+@torch.no_grad()
 def l2_normalize(tensor, eps=1e-12):
     ndims = tensor.dim()
     dims = tuple(torch.arange(1, ndims))
