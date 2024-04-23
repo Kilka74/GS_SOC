@@ -9,67 +9,72 @@ import einops
 @torch.no_grad()
 def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     groups, out_ch, in_ch, h, w = conv_filter.shape
-
+    dims = (1, 2, 3, 4)
     u1 = torch.randn((groups, 1, in_ch, 1, w), device=device, requires_grad=False)
-    u1.data = l2_normalize(u1.data)
+    u1.data = F.normalize(u1.data, dim=dims)
 
     u2 = torch.randn((groups, 1, in_ch, h, 1), device=device, requires_grad=False)
-    u2.data = l2_normalize(u2.data)
+    u2.data = F.normalize(u2.data, dim=dims)
 
     u3 = torch.randn((groups, 1, in_ch, h, w), device=device, requires_grad=False)
-    u3.data = l2_normalize(u3.data)
+    u3.data = F.normalize(u3.data, dim=dims)
 
     u4 = torch.randn((groups, out_ch, 1, h, w), device=device, requires_grad=False)
-    u4.data = l2_normalize(u4.data)
+    u4.data = F.normalize(u4.data, dim=dims)
 
     v1 = torch.randn((groups, out_ch, 1, h, 1), device=device, requires_grad=False)
-    v1.data = l2_normalize(v1.data)
+    v1.data = F.normalize(v1.data, dim=dims)
 
     v2 = torch.randn((groups, out_ch, 1, 1, w), device=device, requires_grad=False)
-    v2.data = l2_normalize(v2.data)
+    v2.data = F.normalize(v2.data, dim=dims)
 
     v3 = torch.randn((groups, out_ch, 1, 1, 1), device=device, requires_grad=False)
-    v3.data = l2_normalize(v3.data)
+    v3.data = F.normalize(v3.data, dim=dims)
 
     v4 = torch.randn((groups, 1, in_ch, 1, 1), device=device, requires_grad=False)
-    v4.data = l2_normalize(v4.data)
+    v4.data = F.normalize(v4.data, dim=dims)
 
     for i in range(num_iters):
-        v1.data = l2_normalize(
-            (conv_filter.data * u1.data).sum((2, 4), keepdim=True).data
+        v1.data = F.normalize(
+            (conv_filter.data * u1.data).sum((2, 4), keepdim=True).data,
+            dim=dims
         )
-        u1.data = l2_normalize(
-            (conv_filter.data * v1.data).sum((1, 3), keepdim=True).data
-        )
-
-        v2.data = l2_normalize(
-            (conv_filter.data * u2.data).sum((2, 3), keepdim=True).data
-        )
-        u2.data = l2_normalize(
-            (conv_filter.data * v2.data).sum((1, 4), keepdim=True).data
+        u1.data = F.normalize(
+            (conv_filter.data * v1.data).sum((1, 3), keepdim=True).data,
+            dim=dims
         )
 
-        v3.data = l2_normalize(
-            (conv_filter.data * u3.data).sum((2, 3, 4), keepdim=True).data
+        v2.data = F.normalize(
+            (conv_filter.data * u2.data).sum((2, 3), keepdim=True).data,
+            dim=dims
         )
-        u3.data = l2_normalize((conv_filter.data * v3.data).sum(1, keepdim=True).data)
+        u2.data = F.normalize(
+            (conv_filter.data * v2.data).sum((1, 4), keepdim=True).data,
+            dim=dims
+        )
 
-        v4.data = l2_normalize(
-            (conv_filter.data * u4.data).sum((1, 3, 4), keepdim=True).data
+        v3.data = F.normalize(
+            (conv_filter.data * u3.data).sum((2, 3, 4), keepdim=True).data,
+            dim=dims
         )
-        u4.data = l2_normalize((conv_filter.data * v4.data).sum(2, keepdim=True).data)
+        u3.data = F.normalize((conv_filter.data * v3.data).sum(1, keepdim=True).data, dim=dims)
+
+        v4.data = F.normalize(
+            (conv_filter.data * u4.data).sum((1, 3, 4), keepdim=True).data, dim=dims
+        )
+        u4.data = F.normalize((conv_filter.data * v4.data).sum(2, keepdim=True).data, dim=dims)
 
     return u1, v1, u2, v2, u3, v3, u4, v4
 
 
-@torch.no_grad()
-def l2_normalize(tensor, eps=1e-12):
-    ndims = tensor.dim()
-    dims = tuple(torch.arange(1, ndims))
-    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
-    norm = torch.max(norm, torch.tensor([eps], device=norm.device))
-    ans = tensor / norm
-    return ans
+# @torch.no_grad()
+# def l2_normalize(tensor, eps=1e-12):
+#     ndims = tensor.dim()
+#     dims = tuple(torch.arange(1, ndims))
+#     norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
+#     norm = torch.max(norm, torch.tensor([eps], device=norm.device))
+#     ans = tensor / norm
+#     return ans
 
 
 def transpose_filter(conv_filter):
@@ -206,51 +211,52 @@ class SOC(nn.Module):
             self.total_iters = self.total_iters + 1
         else:
             update_iters = 0
-        random_conv_filter_T = transpose_filter(self.random_conv_filter)
-        conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
+        random_conv_filter_T = transpose_filter(self.random_conv_filter.detach())
+        conv_filter = 0.5 * (self.random_conv_filter.detach() - random_conv_filter_T)
         # pad_size = conv_filter.shape[2] // 2
+        dims = (1, 2, 3, 4)
         with torch.no_grad():
             for i in range(update_iters):
-                self.v1.data = l2_normalize(
-                    (conv_filter * self.u1).sum((2, 4), keepdim=True).data
+                self.v1.data = F.normalize(
+                    (conv_filter * self.u1).sum((2, 4), keepdim=True).data, dim=dims
                 )
-                self.u1.data = l2_normalize(
-                    (conv_filter * self.v1).sum((1, 3), keepdim=True).data
+                self.u1.data = F.normalize(
+                    (conv_filter * self.v1).sum((1, 3), keepdim=True).data, dim=dims
                 )
-                self.v2.data = l2_normalize(
-                    (conv_filter * self.u2).sum((2, 3), keepdim=True).data
+                self.v2.data = F.normalize(
+                    (conv_filter * self.u2).sum((2, 3), keepdim=True).data, dim=dims
                 )
-                self.u2.data = l2_normalize(
-                    (conv_filter * self.v2).sum((1, 4), keepdim=True).data
+                self.u2.data = F.normalize(
+                    (conv_filter * self.v2).sum((1, 4), keepdim=True).data, dim=dims
                 )
-                self.v3.data = l2_normalize(
-                    (conv_filter * self.u3).sum((2, 3, 4), keepdim=True).data
+                self.v3.data = F.normalize(
+                    (conv_filter * self.u3).sum((2, 3, 4), keepdim=True).data, dim=dims
                 )
-                self.u3.data = l2_normalize(
-                    (conv_filter * self.v3).sum(1, keepdim=True).data
+                self.u3.data = F.normalize(
+                    (conv_filter * self.v3).sum(1, keepdim=True).data, dim=dims
                 )
-                self.v4.data = l2_normalize(
-                    (conv_filter * self.u4).sum((1, 3, 4), keepdim=True).data
+                self.v4.data = F.normalize(
+                    (conv_filter * self.u4).sum((1, 3, 4), keepdim=True).data, dim=dims
                 )
-                self.u4.data = l2_normalize(
-                    (conv_filter * self.v4).sum(2, keepdim=True).data
+                self.u4.data = F.normalize(
+                    (conv_filter * self.v4).sum(2, keepdim=True).data, dim=dims
                 )
 
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        dims = (1, 2, 3, 4)
-        sigma1 = torch.sum(conv_filter * self.u1 * self.v1, dim=dims, keepdim=True)
-        sigma2 = torch.sum(conv_filter * self.u2 * self.v2, dim=dims, keepdim=True)
-        sigma3 = torch.sum(conv_filter * self.u3 * self.v3, dim=dims, keepdim=True)
-        sigma4 = torch.sum(conv_filter * self.u4 * self.v4, dim=dims, keepdim=True)
+        sigma1 = torch.sum((conv_filter * self.u1 * self.v1).view(self.groups, -1), dim=1)
+        sigma2 = torch.sum((conv_filter * self.u2 * self.v2).view(self.groups, -1), dim=1)
+        sigma3 = torch.sum((conv_filter * self.u3 * self.v3).view(self.groups, -1), dim=1)
+        sigma4 = torch.sum((conv_filter * self.u4 * self.v4).view(self.groups, -1), dim=1)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
-        return sigma
+        return sigma.view(-1, 1, 1, 1, 1)
 
     def forward(self, x):
         random_conv_filter_T = transpose_filter(self.random_conv_filter).contiguous()
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
-        sigma = self.update_sigma()
+        with torch.no_grad():
+            sigma = self.update_sigma()
         # sigma = 1
         conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
             self.groups * self.max_channels,
