@@ -212,7 +212,7 @@ class SOC(nn.Module):
         else:
             update_iters = 0
         random_conv_filter_T = transpose_filter(self.random_conv_filter.detach())
-        conv_filter = 0.5 * (self.random_conv_filter.detach() - random_conv_filter_T)
+        conv_filter = 0.5 * (self.random_conv_filter.detach() - random_conv_filter_T.detach())
         # pad_size = conv_filter.shape[2] // 2
         dims = (1, 2, 3, 4)
         with torch.no_grad():
@@ -245,10 +245,10 @@ class SOC(nn.Module):
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        sigma1 = torch.sum((conv_filter * self.u1 * self.v1).view(self.groups, -1), dim=1)
-        sigma2 = torch.sum((conv_filter * self.u2 * self.v2).view(self.groups, -1), dim=1)
-        sigma3 = torch.sum((conv_filter * self.u3 * self.v3).view(self.groups, -1), dim=1)
-        sigma4 = torch.sum((conv_filter * self.u4 * self.v4).view(self.groups, -1), dim=1)
+        sigma1 = torch.sum((conv_filter * self.u1 * self.v1).detach().view(self.groups, -1), dim=1)
+        sigma2 = torch.sum((conv_filter * self.u2 * self.v2).detach().view(self.groups, -1), dim=1)
+        sigma3 = torch.sum((conv_filter * self.u3 * self.v3).detach().view(self.groups, -1), dim=1)
+        sigma4 = torch.sum((conv_filter * self.u4 * self.v4).detach().view(self.groups, -1), dim=1)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma.view(-1, 1, 1, 1, 1)
 
