@@ -29,23 +29,27 @@ def init_model(args):
         num_classes = 100
 
     model_func = resnet_mapping[args.model_name]
+    groups = tuple(map(int, args.groups.split()))
+    if len(groups) == 1:
+        groups = args.groups
+
     model = model_func(
         conv_name=args.conv_layer,
         activation_name=args.activation,
         num_classes=num_classes,
-        groups=args.groups
+        groups=groups
     )
     return model
 
 
 @hydra.main(config_path="conf", config_name="config", version_base=None)
 def main(args):
-
+    groups = tuple(map(int, args.groups.split()))
     args.out_dir += "_" + str(args.dataset)
     args.out_dir += "_" + str(args.model_name)
     args.out_dir += "_" + str(args.conv_layer)
     args.out_dir += "_" + str(args.activation)
-    args.out_dir += "_" + str(args.groups)
+    args.out_dir += "_" + str(groups)
     args.out_dir += "_" + str(args.weight_decay)
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -75,7 +79,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"float16 {args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
+        name=f"float16 {args.model_name}, {args.conv_layer}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -91,7 +95,7 @@ def main(args):
             "momentum": args.momentum,
             "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
             "number of all parameters": sum(p.numel() for p in model.parameters()),
-            "groups": args.groups
+            "groups": groups
         }
     )
 

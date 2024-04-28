@@ -130,7 +130,6 @@ class SOC(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
-        testing=False
     ):
         super(SOC, self).__init__()
         assert (stride == 1) or (stride == 2)
@@ -148,7 +147,6 @@ class SOC(nn.Module):
         self.total_iters = 0
         self.train_terms = train_terms
         self.eval_terms = eval_terms
-        self.testing = testing
 
         if kernel_size == 1:
             correction = 1.0
@@ -299,9 +297,7 @@ class SOC(nn.Module):
 
         if self.enable_bias:
             z = z + self.bias.view(1, -1, 1, 1)
-        if not self.testing:
-            return z
-        return z, conv_filter_n
+        return z
 
 
 # https://github.com/jaxony/ShuffleNet/blob/e9bf42f0cda8dda518cafffd515654cc04584e7a/model.py#L36C1-L53C13
@@ -341,9 +337,16 @@ class MonarchSOC(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
-        testing=False
     ):
         super(MonarchSOC, self).__init__()
+
+        self.groups = groups
+        if isinstance(groups, tuple):
+            self.groups_1 = groups[0]
+            self.groups_2 = groups[1]
+        else:
+            self.groups_1 = groups
+            self.groups_2 = out_channels // groups
 
         self.soc1 = SOC(
             in_channels=in_channels,
@@ -352,7 +355,7 @@ class MonarchSOC(nn.Module):
             stride=stride,
             padding=padding,
             bias=bias,
-            groups=groups,
+            groups=self.groups_1,
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -360,7 +363,6 @@ class MonarchSOC(nn.Module):
             update_freq=update_freq,
             correction=correction,
             device=device,
-            testing=testing
         )
 
         self.soc2 = SOC(
@@ -370,7 +372,7 @@ class MonarchSOC(nn.Module):
             stride=1,
             padding=padding,
             bias=bias,
-            groups=out_channels//groups, # fix for correct intuition in number of blocks
+            groups=self.groups_2, # fix for correct intuition in number of blocks
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -378,19 +380,16 @@ class MonarchSOC(nn.Module):
             update_freq=update_freq,
             correction=correction,
             device=device,
-            testing=testing
         )
-        self.groups = groups
-        self.testing = testing
         self.out_channels = out_channels
 
     def forward(self, x):
-        if self.testing:
-            x, filter_1 = self.soc1(x)
+        x = self.soc1(x)
+        if isinstance(self.groups, tuple):
+            x = channel_shuffle(x, self.groups_2)
         else:
-            x = self.soc1(x)
-        x = channel_shuffle(x, self.groups)
-        if not self.testing:
-            return channel_shuffle(self.soc2(x), self.out_channels // self.groups)
-        result, filter_2 = self.soc2(x)  # for testing
-        return channel_shuffle(result, self.out_channels // self.groups), filter_1, filter_2
+            x = channel_shuffle(x, self.groups_1)
+        x = self.soc2(x)
+        if isinstance(self.groups, tuple):
+            return channel_shuffle(x, self.out_channels // self.groups_2)
+        return channel_shuffle(x, self.out_channels // self.groups_1)
