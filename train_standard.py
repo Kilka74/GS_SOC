@@ -29,8 +29,9 @@ def init_model(args):
         num_classes = 100
 
     model_func = resnet_mapping[args.model_name]
-    groups = tuple(map(int, args.groups.split()))
-    if len(groups) == 1:
+    if isinstance(args.groups, str):
+        groups = tuple(map(int, args.groups.split()))
+    else:
         groups = args.groups
 
     model = model_func(
@@ -44,12 +45,11 @@ def init_model(args):
 
 @hydra.main(config_path="conf", config_name="config", version_base=None)
 def main(args):
-    groups = tuple(map(int, args.groups.split()))
     args.out_dir += "_" + str(args.dataset)
     args.out_dir += "_" + str(args.model_name)
     args.out_dir += "_" + str(args.conv_layer)
     args.out_dir += "_" + str(args.activation)
-    args.out_dir += "_" + str(groups)
+    args.out_dir += "_" + str(args.groups)
     args.out_dir += "_" + str(args.weight_decay)
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -74,7 +74,11 @@ def main(args):
     )
     model = init_model(args).cuda()
     model.train()
-
+    if isinstance(args.groups, str):
+        groups = tuple(map(int, args.groups.split()))
+    else:
+        groups = args.groups
+    
     wandb.login(key=args.wandb_key, relogin=True)
     wandb.init(
         entity="kilka74",

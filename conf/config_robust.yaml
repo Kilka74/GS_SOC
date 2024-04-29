@@ -2,13 +2,15 @@ batch_size: 128
 epochs: 200
 lr_min: 0
 lr_max: 0.1
+wandb_key: 
+model_name: LipConvnet
 weight_decay: 5e-4
 momentum: 0.9
 gamma: 0
 epsilon: 36
-out_dir: robust
+out_dir: robust_testing
 dataset: cifar10
-data_dir: cifar-data
+data_dir: cifar10-data
 lln: True
 init_channels: 32
 activation: maxmin

@@ -126,16 +126,17 @@ def evaluate_pgd(test_loader, model, attack_iters, restarts, limit_n=float("inf"
     n = 0
     model.eval()
     for i, (X, y) in enumerate(test_loader):
-        X, y = X.cuda(), y.cuda()
-        pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts)
-        with torch.no_grad():
-            output = model(X + pgd_delta)
-            loss = F.cross_entropy(output, y)
-            pgd_loss += loss.item() * y.size(0)
-            pgd_acc += (output.max(1)[1] == y).sum().item()
-            n += y.size(0)
-            if n >= limit_n:
-                break
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            X, y = X.cuda(), y.cuda()
+            pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts)
+            with torch.no_grad():
+                output = model(X + pgd_delta)
+                loss = F.cross_entropy(output, y)
+                pgd_loss += loss.item() * y.size(0)
+                pgd_acc += (output.max(1)[1] == y).sum().item()
+                n += y.size(0)
+                if n >= limit_n:
+                    break
     return pgd_loss / n, pgd_acc / n
 
 
@@ -185,16 +186,17 @@ def evaluate_pgd_l2(test_loader, model, attack_iters, restarts, limit_n=float("i
     n = 0
     model.eval()
     for i, (X, y) in enumerate(test_loader):
-        X, y = X.cuda(), y.cuda()
-        pgd_delta = attack_pgd_l2(model, X, y, epsilon, alpha, attack_iters, restarts)
-        with torch.no_grad():
-            output = model(X + pgd_delta)
-            loss = F.cross_entropy(output, y)
-            pgd_loss += loss.item() * y.size(0)
-            pgd_acc += (output.max(1)[1] == y).sum().item()
-            n += y.size(0)
-            if n >= limit_n:
-                break
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            X, y = X.cuda(), y.cuda()
+            pgd_delta = attack_pgd_l2(model, X, y, epsilon, alpha, attack_iters, restarts)
+            with torch.no_grad():
+                output = model(X + pgd_delta)
+                loss = F.cross_entropy(output, y)
+                pgd_loss += loss.item() * y.size(0)
+                pgd_acc += (output.max(1)[1] == y).sum().item()
+                n += y.size(0)
+                if n >= limit_n:
+                    break
     return pgd_loss / n, pgd_acc / n
 
 
@@ -257,32 +259,30 @@ def evaluate_certificates(test_loader, model, L, epsilon=36.0):
 
     with torch.no_grad():
         for i, (X, y) in enumerate(test_loader):
-            X, y = X.cuda(), y.cuda()
-            output = model(X)
-            loss = F.cross_entropy(output, y, reduction="none")
-            losses_list.append(loss)
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                X, y = X.cuda(), y.cuda()
+                output = model(X)
+                loss = F.cross_entropy(output, y, reduction="none")
+                losses_list.append(loss)
 
-            output_max, output_amax = torch.max(output, dim=1)
+                output_max, output_amax = torch.max(output, dim=1)
 
-            if model.lln:
-                certificates = lln_certificates(
-                    output, output_amax, model.last_layer, L
-                )
-            else:
-                certificates = ortho_certificates(output, output_amax, L)
+                if model.lln:
+                    certificates = lln_certificates(
+                        output, output_amax, model.last_layer, L
+                    )
+                else:
+                    certificates = ortho_certificates(output, output_amax, L)
 
-            correct = output_amax == y
-            certificates_list.append(certificates)
-            correct_list.append(correct)
+                correct = output_amax == y
+                certificates_list.append(certificates)
+                correct_list.append(correct)
 
         losses_array = torch.cat(losses_list, dim=0).cpu().numpy()
         certificates_array = torch.cat(certificates_list, dim=0).cpu().numpy()
         correct_array = torch.cat(correct_list, dim=0).cpu().numpy()
     return losses_array, correct_array, certificates_array
 
-
-# from cayley_ortho_conv import Cayley, CayleyLinear
-# from block_ortho_conv import BCOP
 
 conv_mapping = {"standard": nn.Conv2d, "soc": SOC, "monarch_soc": MonarchSOC, "original_soc": OriginalSOC}
 

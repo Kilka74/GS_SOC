@@ -23,7 +23,9 @@ def init_model(args):
     elif args.dataset == 'cifar100':
         num_classes = 100
     
-    if len(groups) == 1:
+    if isinstance(args.groups, str):
+        groups = tuple(map(int, args.groups.split()))
+    else:
         groups = args.groups
 
     model = LipConvNet(args.conv_layer, args.activation, init_channels=args.init_channels, 
@@ -47,13 +49,12 @@ def robust_statistics(losses_arr, correct_arr, certificates_arr,
 
 @hydra.main(config_path="conf", config_name="config_robust", version_base=None)
 def main(args):
-    groups = tuple(map(int, args.groups.split()))
     args.out_dir += '_' + str(args.dataset) 
     args.out_dir += '_' + str(args.block_size) 
     args.out_dir += '_' + str(args.conv_layer)
     args.out_dir += '_' + str(args.init_channels)
     args.out_dir += '_' + str(args.activation)
-    args.out_dir += '_' + str(groups)
+    args.out_dir += '_' + str(args.groups)
     args.out_dir += '_cr' + str(args.gamma)
     if args.lln:
         args.out_dir += '_lln'
@@ -84,13 +85,32 @@ def main(args):
     # Evaluation at early stopping
     model = init_model(args).cuda()
     model.train()
+    if isinstance(args.groups, str):
+        groups = tuple(map(int, args.groups.split()))
+    else:
+        groups = args.groups
 
     wandb.login(key=args.wandb_key, relogin=True)
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name="",
-        config={}
+        name=f"float16 {args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
+        config={
+            "batch_size": args.batch_size,
+            "epochs": args.epochs,
+            "model_name": args.model_name,
+            "dataset": args.dataset,
+            "seed": args.seed,
+            "activation": args.activation,
+            "conv_layer": args.conv_layer,
+            "min_lr": args.lr_min,
+            "max_lr": args.lr_max,
+            "weight_decay": args.weight_decay,
+            "momentum": args.momentum,
+            "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
+            "number of all parameters": sum(p.numel() for p in model.parameters()),
+            "groups": groups
+        }
     )
 
     conv_params, activation_params, other_params = parameter_lists(model)
@@ -104,7 +124,6 @@ def main(args):
         lr=args.lr_max,
         momentum=args.momentum
     )
-
 
     criterion = nn.CrossEntropyLoss()
 
