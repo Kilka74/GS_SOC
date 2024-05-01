@@ -53,7 +53,7 @@ class LipConvNet(nn.Module):
             self.last_layer = NormalizedLinear(flat_features, num_classes)
         else:
             self.last_layer = conv_layer(flat_features, num_classes, 
-                                         kernel_size=1, stride=1)
+                                         kernel_size=1, stride=1, groups=groups)
 
     def _make_layer(self, planes, num_blocks, conv_layer, activation, 
                     stride, kernel_size, groups):

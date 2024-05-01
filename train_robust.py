@@ -29,7 +29,7 @@ def init_model(args):
         groups = args.groups
 
     model = LipConvNet(args.conv_layer, args.activation, init_channels=args.init_channels, 
-                       block_size = args.block_size, num_classes=num_classes, 
+                       block_size=args.block_size, num_classes=num_classes, 
                        lln=args.lln, groups=groups)
     return model
 
@@ -94,7 +94,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"float16 {args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
+        name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -129,7 +129,7 @@ def main(args):
 
     lr_steps = args.epochs * len(train_loader)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        opt, milestones=[lr_steps // 4, (3 * lr_steps) // 4], gamma=0.1
+        opt, milestones=[lr_steps // 2, (3 * lr_steps) // 4], gamma=0.1
     )
     
     best_model_path = os.path.join(args.out_dir, 'best.pth')
@@ -152,27 +152,26 @@ def main(args):
         train_acc = 0
         train_n = 0
         for i, (X, y) in enumerate(train_loader):
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                X, y = X.cuda(), y.cuda()
+            X, y = X.cuda(), y.cuda()
+            
+            output = model(X)
+            curr_correct = (output.max(1)[1] == y)
+            if args.lln:
+                curr_cert = lln_certificates(output, y, model.last_layer, L)
+            else:
+                curr_cert = ortho_certificates(output, y, L)
                 
-                output = model(X)
-                curr_correct = (output.max(1)[1] == y)
-                if args.lln:
-                    curr_cert = lln_certificates(output, y, model.last_layer, L)
-                else:
-                    curr_cert = ortho_certificates(output, y, L)
-                    
-                ce_loss = criterion(output, y)
-                loss = ce_loss - args.gamma * F.relu(curr_cert).mean()
-                
-                wandb.log({
-                    "train_loss": loss.item(),
-                    "lr": scheduler.get_last_lr()[0]
-                })
+            ce_loss = criterion(output, y)
+            loss = ce_loss - args.gamma * F.relu(curr_cert).mean()
+            
+            wandb.log({
+                "train_loss": loss.item(),
+                "lr": scheduler.get_last_lr()[0]
+            })
 
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
 
             train_loss += ce_loss.item() * y.size(0)
             train_cert += (curr_cert * curr_correct).sum().item()
