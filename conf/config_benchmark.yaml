@@ -1,0 +1,18 @@
+batch_size: 128
+lr_min: 0.0
+lr_max: 0.1
+momentum: 0.9
+seed: 42
+dataset: cifar10
+data_dir: ./cifar10-data
+wandb_key: 
+lr_scheduler: multistep
+activation: relu
+weight_decay: 5e-4
+conv_layer: monarch_soc
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      +groups: 1, 4, 8, 16, 8 8, 16 16
+      +model_name: resnet18, resnet34

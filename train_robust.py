@@ -94,7 +94,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
+        name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}, gamma={args.gamma}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -109,18 +109,14 @@ def main(args):
             "momentum": args.momentum,
             "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
             "number of all parameters": sum(p.numel() for p in model.parameters()),
+            "gamma": args.gamma,
             "groups": groups
         }
     )
 
-    conv_params, activation_params, other_params = parameter_lists(model)
     opt = torch.optim.SGD(
-        [
-            {'params': activation_params, 'weight_decay': 0.0},
-            {
-                'params': (conv_params + other_params),
-                'weight_decay': args.weight_decay}
-        ],
+        model.parameters(),
+        weight_decay=args.weight_decay,
         lr=args.lr_max,
         momentum=args.momentum
     )
@@ -131,7 +127,7 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         opt, milestones=[lr_steps // 2, (3 * lr_steps) // 4], gamma=0.1
     )
-    
+    args.lln = bool(args.lln)
     best_model_path = os.path.join(args.out_dir, 'best.pth')
     last_model_path = os.path.join(args.out_dir, 'last.pth')
     last_opt_path = os.path.join(args.out_dir, 'last_opt.pth')
@@ -264,6 +260,7 @@ def main(args):
     logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', epoch, test_loss, test_acc,
                                                         test_robust_acc_list[0], test_robust_acc_list[1], 
                                                         test_robust_acc_list[2], test_cert, total_time)
+    wandb.finish()
 
 if __name__ == "__main__":
     main()
