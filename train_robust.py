@@ -145,9 +145,7 @@ def main(args):
             X, y = X.cuda(), y.cuda()
             
             output = model(X)
-            curr_correct = (output.max(1)[1] == y)
 
-                
             ce_loss = criterion(output, y)
             
             wandb.log({
@@ -158,6 +156,7 @@ def main(args):
             opt.zero_grad()
             ce_loss.backward()
             opt.step()
+            curr_correct = (output.max(1)[1] == y)
 
             train_loss += ce_loss.item() * y.size(0)
             train_acc += curr_correct.sum().item()
