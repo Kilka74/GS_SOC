@@ -74,10 +74,11 @@ def main(args):
     train_loader, test_loader = get_loaders(
         args.data_dir, args.batch_size, args.dataset
     )
-    sleep(300)
+    sleep(100)
     for i in range(5):
         warmup()
     
+    model = init_model_standard(args).cuda()
     wandb.login(key=args.wandb_key, relogin=True)
     wandb.init(
         entity="kilka74",
@@ -100,29 +101,11 @@ def main(args):
         }
     )
 
-    model = init_model_standard(args).cuda()
-    conv_params = []
-    activation_params = []
-    other_params = []
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            if "activation" in name:
-                activation_params.append(param)
-            elif "conv" in name:
-                conv_params.append(param)
-            else:
-                other_params.append(param)
-
     opt = torch.optim.SGD(
-        [
-            {"params": activation_params, "weight_decay": 0.0},
-            {
-                "params": (conv_params + other_params),
-                "weight_decay": args.weight_decay,
-            },
-        ],
+        model.parameters(),
+        weight_decay=args.weight_decay,
         lr=args.lr_max,
-        momentum=args.momentum,
+        momentum=args.momentum
     )
 
     t0 = benchmark.Timer(stmt="bench(model, loader, loss, opt)", globals={

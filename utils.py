@@ -205,13 +205,12 @@ def evaluate_standard(test_loader, model):
     model.eval()
     with torch.no_grad():
         for i, (X, y) in enumerate(test_loader):
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                X, y = X.cuda(), y.cuda()
-                output = model(X)
-                loss = F.cross_entropy(output, y)
-                test_loss += loss.item() * y.size(0)
-                test_acc += (output.max(1)[1] == y).sum().item()
-                n += y.size(0)
+            X, y = X.cuda(), y.cuda()
+            output = model(X)
+            loss = F.cross_entropy(output, y)
+            test_loss += loss.item() * y.size(0)
+            test_acc += (output.max(1)[1] == y).sum().item()
+            n += y.size(0)
     return test_loss / n, test_acc / n
 
 

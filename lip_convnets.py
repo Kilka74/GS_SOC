@@ -28,9 +28,8 @@ class LipBlock(nn.Module):
         
 class LipConvNet(nn.Module):
     def __init__(self, conv_name, activation, init_channels=32, block_size=1, 
-                 num_classes=10, input_side=32, lln=False, groups=1):
-        super(LipConvNet, self).__init__()        
-        self.lln = lln
+                 num_classes=10, input_side=32, groups=1):
+        super(LipConvNet, self).__init__()
         self.in_planes = 3
         
         conv_layer = conv_mapping[conv_name]
@@ -49,11 +48,8 @@ class LipConvNet(nn.Module):
         
         flat_size = input_side // 32
         flat_features = flat_size * flat_size * self.in_planes
-        if self.lln:
-            self.last_layer = NormalizedLinear(flat_features, num_classes)
-        else:
-            self.last_layer = conv_layer(flat_features, num_classes, 
-                                         kernel_size=1, stride=1, groups=groups)
+        self.last_layer = conv_layer(flat_features, num_classes, 
+                                        kernel_size=1, stride=1, groups=groups)
 
     def _make_layer(self, planes, num_blocks, conv_layer, activation, 
                     stride, kernel_size, groups):

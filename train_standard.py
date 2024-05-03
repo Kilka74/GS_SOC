@@ -168,18 +168,18 @@ def main(args):
         train_acc = 0
         train_n = 0
         for i, (X, y) in enumerate(train_loader):
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                X, y = X.cuda(), y.cuda()
+            # with torch.autocast(device_type="cuda", dtype=torch.float16):
+            X, y = X.cuda(), y.cuda()
 
-                output = model(X)
-                ce_loss = criterion(output, y)
-                wandb.log({
-                    "train_loss": ce_loss.item(),
-                    "lr": scheduler.get_last_lr()[0]
-                })
-                opt.zero_grad(set_to_none=True)
-                ce_loss.backward()
-                opt.step()
+            output = model(X)
+            ce_loss = criterion(output, y)
+            wandb.log({
+                "train_loss": ce_loss.item(),
+                "lr": scheduler.get_last_lr()[0]
+            })
+            opt.zero_grad(set_to_none=True)
+            ce_loss.backward()
+            opt.step()
 
             train_loss += ce_loss.item() * y.size(0)
             train_acc += (output.max(1)[1] == y).sum().item()
