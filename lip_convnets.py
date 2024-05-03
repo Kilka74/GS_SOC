@@ -48,8 +48,8 @@ class LipConvNet(nn.Module):
         
         flat_size = input_side // 32
         flat_features = flat_size * flat_size * self.in_planes
-        self.last_layer = conv_layer(flat_features, num_classes, 
-                                        kernel_size=1, stride=1, groups=groups)
+        self.last_layer = SOC(flat_features, num_classes, 
+                                        kernel_size=1, stride=1, groups=1)
 
     def _make_layer(self, planes, num_blocks, conv_layer, activation, 
                     stride, kernel_size, groups):
