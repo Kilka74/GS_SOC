@@ -263,12 +263,7 @@ def evaluate_certificates(test_loader, model, L, epsilon=36.0):
 
             output_max, output_amax = torch.max(output, dim=1)
 
-            if model.lln:
-                certificates = lln_certificates(
-                    output, output_amax, model.last_layer, L
-                )
-            else:
-                certificates = ortho_certificates(output, output_amax, L)
+            certificates = ortho_certificates(output, output_amax, L)
 
             correct = output_amax == y
             certificates_list.append(certificates)
