@@ -192,7 +192,7 @@ class SOC(nn.Module):
 
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
-            nn.init.zeros_(self.bias)
+            nn.init.uniform_(self.bias, -stdv, stdv)
 
     @torch.no_grad()
     def update_sigma(self):
