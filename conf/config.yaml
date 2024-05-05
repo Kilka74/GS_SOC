@@ -4,16 +4,16 @@ lr_min: 0.0
 lr_max: 0.1
 momentum: 0.9
 seed: 42
-out_dir: standard
-dataset: cifar100
-data_dir: ./cifar100-data-3
+out_dir: testing
+dataset: cifar10
+data_dir: ./cifar10-data-3
 wandb_key: 
 lr_scheduler: multistep
-model_name: resnet34
+model_name: resnet18
 activation: relu
 weight_decay: 5e-4
-conv_layer: monarch_soc
-groups: 16 16
+conv_layer: soc
+groups: 1
 # hydra:
 #   mode: MULTIRUN
 #   sweeper:

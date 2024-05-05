@@ -11,70 +11,65 @@ def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     groups, out_ch, in_ch, h, w = conv_filter.shape
     dims = (1, 2, 3, 4)
     u1 = torch.randn((groups, 1, in_ch, 1, w), device=device, requires_grad=False)
-    u1.data = F.normalize(u1.data, dim=dims)
+    u1.data = l2_normalize(u1.data)
 
     u2 = torch.randn((groups, 1, in_ch, h, 1), device=device, requires_grad=False)
-    u2.data = F.normalize(u2.data, dim=dims)
+    u2.data = l2_normalize(u2.data)
 
     u3 = torch.randn((groups, 1, in_ch, h, w), device=device, requires_grad=False)
-    u3.data = F.normalize(u3.data, dim=dims)
+    u3.data = l2_normalize(u3.data)
 
     u4 = torch.randn((groups, out_ch, 1, h, w), device=device, requires_grad=False)
-    u4.data = F.normalize(u4.data, dim=dims)
+    u4.data = l2_normalize(u4.data)
 
     v1 = torch.randn((groups, out_ch, 1, h, 1), device=device, requires_grad=False)
-    v1.data = F.normalize(v1.data, dim=dims)
+    v1.data = l2_normalize(v1.data)
 
     v2 = torch.randn((groups, out_ch, 1, 1, w), device=device, requires_grad=False)
-    v2.data = F.normalize(v2.data, dim=dims)
+    v2.data = l2_normalize(v2.data)
 
     v3 = torch.randn((groups, out_ch, 1, 1, 1), device=device, requires_grad=False)
-    v3.data = F.normalize(v3.data, dim=dims)
+    v3.data = l2_normalize(v3.data)
 
     v4 = torch.randn((groups, 1, in_ch, 1, 1), device=device, requires_grad=False)
-    v4.data = F.normalize(v4.data, dim=dims)
+    v4.data = l2_normalize(v4.data)
 
     for i in range(num_iters):
-        v1.data = F.normalize(
-            (conv_filter.data * u1.data).sum((2, 4), keepdim=True).data,
-            dim=dims
+        v1.data = l2_normalize(
+            (conv_filter.data * u1.data).sum((2, 4), keepdim=True).data
         )
-        u1.data = F.normalize(
-            (conv_filter.data * v1.data).sum((1, 3), keepdim=True).data,
-            dim=dims
+        u1.data = l2_normalize(
+            (conv_filter.data * v1.data).sum((1, 3), keepdim=True).data
         )
 
-        v2.data = F.normalize(
-            (conv_filter.data * u2.data).sum((2, 3), keepdim=True).data,
-            dim=dims
+        v2.data = l2_normalize(
+            (conv_filter.data * u2.data).sum((2, 3), keepdim=True).data
         )
-        u2.data = F.normalize(
-            (conv_filter.data * v2.data).sum((1, 4), keepdim=True).data,
-            dim=dims
+        u2.data = l2_normalize(
+            (conv_filter.data * v2.data).sum((1, 4), keepdim=True).data
         )
 
-        v3.data = F.normalize(
-            (conv_filter.data * u3.data).sum((2, 3, 4), keepdim=True).data,
-            dim=dims
+        v3.data = l2_normalize(
+            (conv_filter.data * u3.data).sum((2, 3, 4), keepdim=True).data
         )
-        u3.data = F.normalize((conv_filter.data * v3.data).sum(1, keepdim=True).data, dim=dims)
+        u3.data = l2_normalize((conv_filter.data * v3.data).sum(1, keepdim=True).data)
 
-        v4.data = F.normalize(
-            (conv_filter.data * u4.data).sum((1, 3, 4), keepdim=True).data, dim=dims
+        v4.data = l2_normalize(
+            (conv_filter.data * u4.data).sum((1, 3, 4), keepdim=True).data
         )
-        u4.data = F.normalize((conv_filter.data * v4.data).sum(2, keepdim=True).data, dim=dims)
+        u4.data = l2_normalize((conv_filter.data * v4.data).sum(2, keepdim=True).data)
 
     return u1, v1, u2, v2, u3, v3, u4, v4
 
 
-# @torch.no_grad()
-# def l2_normalize(tensor, eps=1e-12):
-#     ndims = tensor.dim()
-#     dims = tuple(torch.arange(1, ndims))
-#     norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
-#     norm = torch.max(norm, torch.tensor([eps], device=norm.device))
-#     ans = tensor / norm
-#     return ans
+@torch.no_grad()
+def l2_normalize(tensor, eps=1e-12):
+    ndims = tensor.dim()
+    dims = tuple(torch.arange(1, ndims))
+    norm = torch.sqrt(torch.sum(tensor.float() * tensor.float(), dim=dims, keepdim=True))
+    norm = torch.max(norm, torch.tensor([eps], device=norm.device))
+    ans = tensor / norm
+    return ans
 
 
 def transpose_filter(conv_filter):
@@ -192,7 +187,7 @@ class SOC(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1.0 / np.sqrt(self.max_channels)
+        stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
         nn.init.normal_(self.random_conv_filter, std=stdv)
 
         stdv = 1.0 / np.sqrt(self.out_channels)
@@ -215,38 +210,38 @@ class SOC(nn.Module):
         dims = (1, 2, 3, 4)
         with torch.no_grad():
             for i in range(update_iters):
-                self.v1.data = F.normalize(
-                    (conv_filter * self.u1).sum((2, 4), keepdim=True).data, dim=dims
+                self.v1.data = l2_normalize(
+                    (conv_filter * self.u1).sum((2, 4), keepdim=True).data
                 )
-                self.u1.data = F.normalize(
-                    (conv_filter * self.v1).sum((1, 3), keepdim=True).data, dim=dims
+                self.u1.data = l2_normalize(
+                    (conv_filter * self.v1).sum((1, 3), keepdim=True).data
                 )
-                self.v2.data = F.normalize(
-                    (conv_filter * self.u2).sum((2, 3), keepdim=True).data, dim=dims
+                self.v2.data = l2_normalize(
+                    (conv_filter * self.u2).sum((2, 3), keepdim=True).data
                 )
-                self.u2.data = F.normalize(
-                    (conv_filter * self.v2).sum((1, 4), keepdim=True).data, dim=dims
+                self.u2.data = l2_normalize(
+                    (conv_filter * self.v2).sum((1, 4), keepdim=True).data
                 )
-                self.v3.data = F.normalize(
-                    (conv_filter * self.u3).sum((2, 3, 4), keepdim=True).data, dim=dims
+                self.v3.data = l2_normalize(
+                    (conv_filter * self.u3).sum((2, 3, 4), keepdim=True).data
                 )
-                self.u3.data = F.normalize(
-                    (conv_filter * self.v3).sum(1, keepdim=True).data, dim=dims
+                self.u3.data = l2_normalize(
+                    (conv_filter * self.v3).sum(1, keepdim=True).data
                 )
-                self.v4.data = F.normalize(
-                    (conv_filter * self.u4).sum((1, 3, 4), keepdim=True).data, dim=dims
+                self.v4.data = l2_normalize(
+                    (conv_filter * self.u4).sum((1, 3, 4), keepdim=True).data
                 )
-                self.u4.data = F.normalize(
-                    (conv_filter * self.v4).sum(2, keepdim=True).data, dim=dims
+                self.u4.data = l2_normalize(
+                    (conv_filter * self.v4).sum(2, keepdim=True).data
                 )
 
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        sigma1 = torch.sum((conv_filter * self.u1 * self.v1).detach().view(self.groups, -1), dim=1)
-        sigma2 = torch.sum((conv_filter * self.u2 * self.v2).detach().view(self.groups, -1), dim=1)
-        sigma3 = torch.sum((conv_filter * self.u3 * self.v3).detach().view(self.groups, -1), dim=1)
-        sigma4 = torch.sum((conv_filter * self.u4 * self.v4).detach().view(self.groups, -1), dim=1)
+        sigma1 = torch.sum((conv_filter * self.u1 * self.v1).detach(), dim=dims)
+        sigma2 = torch.sum((conv_filter * self.u2 * self.v2).detach(), dim=dims)
+        sigma3 = torch.sum((conv_filter * self.u3 * self.v3).detach(), dim=dims)
+        sigma4 = torch.sum((conv_filter * self.u4 * self.v4).detach(), dim=dims)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma.view(-1, 1, 1, 1, 1)
 

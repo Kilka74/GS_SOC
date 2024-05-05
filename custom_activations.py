@@ -4,16 +4,6 @@ import torch.nn as nn
 import numpy as np
 
 
-class MaxMin(nn.Module):
-    def __init__(self):
-        super(MaxMin, self).__init__()
-
-    def forward(self, z, axis=1):
-        a, b = z.split(z.shape[axis] // 2, axis)
-        c, d = torch.max(a, b), torch.min(a, b)
-        return torch.cat([c, d], dim=axis)
-
-
 class HouseHolder(nn.Module):
     def __init__(self, channels):
         super(HouseHolder, self).__init__()

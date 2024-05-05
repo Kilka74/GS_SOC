@@ -28,23 +28,10 @@ def init_model(args):
     else:
         groups = args.groups
 
-    model = LipConvNet(args.conv_layer, args.activation, init_channels=args.init_channels, 
+    model = LipConvNet(args.conv_layer, init_channels=args.init_channels, 
                        block_size=args.block_size, num_classes=num_classes, 
                        groups=groups)
     return model
-
-def robust_statistics(losses_arr, correct_arr, certificates_arr, 
-                      epsilon_list=[36., 72., 108., 144., 180., 216.]):
-    mean_loss = np.mean(losses_arr)
-    mean_acc = np.mean(correct_arr)
-    mean_certs = (certificates_arr * correct_arr).sum()/correct_arr.sum()
-    
-    robust_acc_list = []
-    for epsilon in epsilon_list:
-        robust_correct_arr = (certificates_arr > (epsilon/255.)) & correct_arr
-        robust_acc = robust_correct_arr.sum()/robust_correct_arr.shape[0]
-        robust_acc_list.append(robust_acc)
-    return mean_loss, mean_acc, mean_certs, robust_acc_list
 
 
 @hydra.main(config_path="conf", config_name="config_robust", version_base=None)
@@ -53,7 +40,7 @@ def main(args):
     args.out_dir += '_' + str(args.block_size) 
     args.out_dir += '_' + str(args.conv_layer)
     args.out_dir += '_' + str(args.init_channels)
-    args.out_dir += '_' + str(args.activation)
+    args.out_dir += '_' + "maxmin"
     args.out_dir += '_' + str(args.groups)
     
     
@@ -98,7 +85,6 @@ def main(args):
             "model_name": args.model_name,
             "dataset": args.dataset,
             "seed": args.seed,
-            "activation": args.activation,
             "conv_layer": args.conv_layer,
             "min_lr": args.lr_min,
             "max_lr": args.lr_max,
@@ -134,7 +120,7 @@ def main(args):
     prev_robust_acc = 0.
     start_train_time = time.time()
     logger.info('Epoch \t Seconds \t LR \t Train Loss \t Train Acc \t Test Loss \t ' + 
-                'Test Acc \t Test Robust (36) \t Test Robust (72) \t Test Robust (108)')
+                'Test Acc \t Test Robust \t Test Cert')
     for epoch in range(args.epochs):
         model.train()
         start_epoch_time = time.time()
@@ -164,12 +150,9 @@ def main(args):
             scheduler.step()
             
         # Check current test accuracy of model
-        losses_arr, correct_arr, certificates_arr = evaluate_certificates(test_loader, model, L)
-        
-        test_loss, test_acc, test_cert, test_robust_acc_list = robust_statistics(
-            losses_arr, correct_arr, certificates_arr)
-        
-        robust_acc = test_robust_acc_list[0]
+        test_loss, test_acc, mean_cert, robust_acc = evaluate_certificates(test_loader, model, L)
+
+        # robust_acc = test_robust_acc_list[0]
         if (robust_acc >= prev_robust_acc):
             torch.save(model.state_dict(), best_model_path)
             prev_robust_acc = robust_acc
@@ -178,7 +161,7 @@ def main(args):
         epoch_time = time.time()
         lr = scheduler.get_last_lr()[0]
         logger.info(
-            '%d \t %.1f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f',
+            '%d \t %.1f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f',
             epoch,
             epoch_time - start_epoch_time,
             lr,
@@ -186,9 +169,8 @@ def main(args):
             train_acc / train_n, 
             test_loss,
             test_acc,
-            test_robust_acc_list[0],
-            test_robust_acc_list[1], 
-            test_robust_acc_list[2],
+            robust_acc,
+            mean_cert
         )
 
         wandb.log({
@@ -196,9 +178,8 @@ def main(args):
             "test_loss": test_loss,
             "test_acc": test_acc,
             "epoch_time": epoch_time - start_epoch_time,
-            "test_robust_36": test_robust_acc_list[0],
-            "test_robust_72": test_robust_acc_list[1],
-            "test_robust_108": test_robust_acc_list[2],
+            "test_robust_acc": robust_acc,
+            "test_cert": mean_cert
         })
         
         torch.save(model.state_dict(), last_model_path)
@@ -218,16 +199,11 @@ def main(args):
     model_test.eval()
         
     start_test_time = time.time()
-    losses_arr, correct_arr, certificates_arr = evaluate_certificates(test_loader, model_test, L)
+    test_loss, test_acc, mean_cert, robust_acc = evaluate_certificates(test_loader, model_test, L)
     total_time = time.time() - start_test_time
     
-    test_loss, test_acc, test_cert, test_robust_acc_list = robust_statistics(
-        losses_arr, correct_arr, certificates_arr)
-    
-    logger.info('Best Epoch \t Test Loss \t Test Acc \t Test Robust (36) \t Test Robust (72) \t Test Robust (108) \t Mean Cert \t Test Time')
-    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', best_epoch, test_loss, test_acc,
-                                                        test_robust_acc_list[0], test_robust_acc_list[1], 
-                                                        test_robust_acc_list[2], total_time)
+    logger.info("Best Epoch \t Test Loss \t Test Acc \t Robust Acc \t  Mean" "Cert \t Test Time")
+    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', best_epoch, test_loss, test_acc, mean_cert, robust_acc,  total_time)
 
     # Evaluation at last model
     model_test.load_state_dict(torch.load(last_model_path))
@@ -235,16 +211,11 @@ def main(args):
     model_test.eval()
 
     start_test_time = time.time()
-    losses_arr, correct_arr, certificates_arr = evaluate_certificates(test_loader, model_test, L)
+    test_loss, test_acc, mean_cert, robust_acc = evaluate_certificates(test_loader, model_test, L)
     total_time = time.time() - start_test_time
     
-    test_loss, test_acc, test_cert, test_robust_acc_list = robust_statistics(
-        losses_arr, correct_arr, certificates_arr)
-    
-    logger.info('Last Epoch \t Test Loss \t Test Acc \t Test Robust (36) \t Test Robust (72) \t Test Robust (108) \t Mean Cert \t Test Time')
-    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', epoch, test_loss, test_acc,
-                                                        test_robust_acc_list[0], test_robust_acc_list[1], 
-                                                        test_robust_acc_list[2], total_time)
+    logger.info("Last Epoch \t Test Loss \t Test Acc \t Robust Acc \t  Mean" "Cert \t Test Time")
+    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', epoch, test_loss, test_acc, mean_cert, robust_acc,  total_time)
     wandb.finish()
 
 if __name__ == "__main__":

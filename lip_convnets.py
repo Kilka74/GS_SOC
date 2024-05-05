@@ -4,30 +4,34 @@ import torch.nn.functional as F
 import numpy as np
 
 from skew_ortho_conv import SOC, MonarchSOC
+from original_soc import SOC as OriginalSOC
 
 from custom_activations import *
-from utils import conv_mapping, activation_mapping
+from utils import conv_mapping
 
-class NormalizedLinear(nn.Linear):
-    def forward(self, X):
-        X = X.view(X.shape[0], -1)
-        weight_norm = torch.norm(self.weight, dim=1, keepdim=True)
-        self.lln_weight = self.weight/weight_norm
-        return F.linear(X, self.lln_weight if self.training else self.lln_weight.detach(), self.bias)
+
+class MinMax(nn.Module):
+    def __init__(self):
+        super(MinMax, self).__init__()
+
+    def forward(self, z, axis=1):
+        a, b = z.split(z.shape[axis] // 2, axis)
+        c, d = torch.min(a, b), torch.max(a, b)
+        return torch.cat([c, d], dim=axis)
 
 class LipBlock(nn.Module):
-    def __init__(self, in_planes, planes, conv_layer, activation_name, stride=1, kernel_size=3, groups=1):
+    def __init__(self, in_planes, planes, conv_layer, stride=1, kernel_size=3, groups=1):
         super(LipBlock, self).__init__()
         self.conv = conv_layer(in_planes, planes*stride, kernel_size=kernel_size, 
                                stride=stride, padding=kernel_size//2, groups=groups)
-        self.activation = activation_mapping(activation_name, planes*stride)
+        self.activation = MinMax()
 
     def forward(self, x):
         x = self.activation(self.conv(x))
         return x
         
 class LipConvNet(nn.Module):
-    def __init__(self, conv_name, activation, init_channels=32, block_size=1, 
+    def __init__(self, conv_name, init_channels=32, block_size=1, 
                  num_classes=10, input_side=32, groups=1):
         super(LipConvNet, self).__init__()
         self.in_planes = 3
@@ -36,28 +40,28 @@ class LipConvNet(nn.Module):
         assert type(block_size) == int
 
         self.layer1 = self._make_layer(init_channels, block_size, conv_layer, 
-                                       activation, stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups)
         self.layer2 = self._make_layer(self.in_planes, block_size, conv_layer, 
-                                       activation, stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups)
         self.layer3 = self._make_layer(self.in_planes, block_size, conv_layer, 
-                                       activation, stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups)
         self.layer4 = self._make_layer(self.in_planes, block_size, conv_layer,
-                                       activation, stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups)
         self.layer5 = self._make_layer(self.in_planes, block_size, conv_layer, 
-                                       activation, stride=2, kernel_size=1, groups=groups)
+                                        stride=2, kernel_size=1, groups=groups)
         
         flat_size = input_side // 32
         flat_features = flat_size * flat_size * self.in_planes
         self.last_layer = SOC(flat_features, num_classes, 
                                         kernel_size=1, stride=1, groups=1)
 
-    def _make_layer(self, planes, num_blocks, conv_layer, activation, 
+    def _make_layer(self, planes, num_blocks, conv_layer, 
                     stride, kernel_size, groups):
         strides = [1]*(num_blocks-1) + [stride]
         kernel_sizes = [3]*(num_blocks-1) + [kernel_size]
         layers = []
         for stride, kernel_size in zip(strides, kernel_sizes):
-            layers.append(LipBlock(self.in_planes, planes, conv_layer, activation, 
+            layers.append(LipBlock(self.in_planes, planes, conv_layer, 
                                    stride, kernel_size, groups))
             self.in_planes = planes * stride
         return nn.Sequential(*layers)

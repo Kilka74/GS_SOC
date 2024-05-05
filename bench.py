@@ -78,12 +78,12 @@ def main(args):
     for i in range(5):
         warmup()
     
-    model = init_model_standard(args).cuda()
+    model = init_model_robust(args).cuda()
     wandb.login(key=args.wandb_key, relogin=True)
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"benchmark epoch time {args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
+        name=f"benchmark epoch time {args.model_name}-{args.block_size*5}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
             "model_name": args.model_name,
@@ -97,7 +97,7 @@ def main(args):
             "momentum": args.momentum,
             "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
             "number of all parameters": sum(p.numel() for p in model.parameters()),
-            "groups": args.groups
+            "groups": args.groups,
         }
     )
 
@@ -121,7 +121,7 @@ def main(args):
     wandb.log({
         "time": time
     })
-    print(f"{args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}, time: {time}")
+    print(f"{args.model_name}-{args.block_size*5}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}, time: {time}")
     wandb.finish()
 
 

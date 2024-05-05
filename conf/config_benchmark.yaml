@@ -2,17 +2,20 @@ batch_size: 128
 lr_min: 0.0
 lr_max: 0.1
 momentum: 0.9
+epsilon: 36
 seed: 42
 dataset: cifar10
-data_dir: ./cifar10-data
+data_dir: ./cifar10-data-3
 wandb_key: 
 lr_scheduler: multistep
-activation: relu
+model_name: LipConvnet
+init_channels: 32
+activation: maxmin
 weight_decay: 5e-4
 conv_layer: monarch_soc
 hydra:
   mode: MULTIRUN
   sweeper:
     params:
+      +block_size: 1, 2, 3, 4, 5
       +groups: 1, 4, 8, 16, 8 8, 16 16
-      +model_name: resnet18, resnet34

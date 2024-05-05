@@ -83,7 +83,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        name=f"float16 {args.model_name}, {args.conv_layer}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
+        name=f"{args.model_name}, {args.conv_layer}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,

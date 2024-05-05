@@ -3,9 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import datasets, transforms
 import math
+import numpy as np
 from skew_ortho_conv import SOC, MonarchSOC
 from original_soc import SOC as OriginalSOC
-from custom_activations import MaxMin, HouseHolder, HouseHolder_Order_2
+from custom_activations import HouseHolder, HouseHolder_Order_2
 
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2507, 0.2507, 0.2507)
@@ -214,46 +215,11 @@ def evaluate_standard(test_loader, model):
     return test_loss / n, test_acc / n
 
 
-def ortho_certificates(output, class_indices, L):
-    batch_size = output.shape[0]
-    batch_indices = torch.arange(batch_size)
-
-    onehot = torch.zeros_like(output).cuda()
-    onehot[torch.arange(output.shape[0]), class_indices] = 1.0
-    output_trunc = output - onehot * 1e6
-
-    output_class_indices = output[batch_indices, class_indices]
-    output_nextmax = torch.max(output_trunc, dim=1)[0]
-    output_diff = output_class_indices - output_nextmax
-    return output_diff / (math.sqrt(2) * L)
-
-
-def lln_certificates(output, class_indices, last_layer, L):
-    batch_size = output.shape[0]
-    batch_indices = torch.arange(batch_size)
-
-    onehot = torch.zeros_like(output).cuda()
-    onehot[batch_indices, class_indices] = 1.0
-    output_trunc = output - onehot * 1e6
-
-    lln_weight = last_layer.lln_weight
-    lln_weight_indices = lln_weight[class_indices, :]
-    lln_weight_diff = lln_weight_indices.unsqueeze(1) - lln_weight.unsqueeze(0)
-    lln_weight_diff_norm = torch.norm(lln_weight_diff, dim=2)
-    lln_weight_diff_norm = lln_weight_diff_norm + onehot
-
-    output_class_indices = output[batch_indices, class_indices]
-    output_diff = output_class_indices.unsqueeze(1) - output_trunc
-    all_certificates = output_diff / (lln_weight_diff_norm * L)
-    return torch.min(all_certificates, dim=1)[0]
-
-
 def evaluate_certificates(test_loader, model, L, epsilon=36.0):
     losses_list = []
     certificates_list = []
     correct_list = []
     model.eval()
-
     with torch.no_grad():
         for i, (X, y) in enumerate(test_loader):
             X, y = X.cuda(), y.cuda()
@@ -263,16 +229,32 @@ def evaluate_certificates(test_loader, model, L, epsilon=36.0):
 
             output_max, output_amax = torch.max(output, dim=1)
 
-            certificates = ortho_certificates(output, output_amax, L)
+            onehot = torch.zeros_like(output).cuda()
+            onehot[torch.arange(output.shape[0]), output_amax] = 1.0
 
+            output_trunc = output - onehot * 1e6
+
+            output_nextmax = torch.max(output_trunc, dim=1)[0]
+            output_diff = output_max - output_nextmax
+
+            certificates = output_diff / (math.sqrt(2) * L)
             correct = output_amax == y
+
             certificates_list.append(certificates)
             correct_list.append(correct)
 
         losses_array = torch.cat(losses_list, dim=0).cpu().numpy()
         certificates_array = torch.cat(certificates_list, dim=0).cpu().numpy()
         correct_array = torch.cat(correct_list, dim=0).cpu().numpy()
-    return losses_array, correct_array, certificates_array
+
+    mean_loss = np.mean(losses_array)
+    mean_acc = np.mean(correct_array)
+
+    mean_certificates = (certificates_array * correct_array).sum() / correct_array.sum()
+
+    robust_correct_array = (certificates_array > (epsilon / 255.0)) & correct_array
+    robust_correct = robust_correct_array.sum() / robust_correct_array.shape[0]
+    return mean_loss, mean_acc, mean_certificates, robust_correct
 
 
 conv_mapping = {"standard": nn.Conv2d, "soc": SOC, "monarch_soc": MonarchSOC, "original_soc": OriginalSOC}
@@ -284,7 +266,6 @@ activation_dict = {
     "sigmoid": F.sigmoid,
     "tanh": F.tanh,
     "softplus": F.softplus,
-    "maxmin": MaxMin(),
 }
 
 
