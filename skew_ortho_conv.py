@@ -6,7 +6,6 @@ import numpy as np
 import einops
 
 
-@torch.no_grad()
 def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     groups, out_ch, in_ch, h, w = conv_filter.shape
     dims = (1, 2, 3, 4)
@@ -62,7 +61,6 @@ def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     return u1, v1, u2, v2, u3, v3, u4, v4
 
 
-@torch.no_grad()
 def l2_normalize(tensor, eps=1e-12):
     ndims = tensor.dim()
     dims = tuple(torch.arange(1, ndims))
@@ -194,7 +192,6 @@ class SOC(nn.Module):
         if self.bias is not None:
             nn.init.uniform_(self.bias, -stdv, stdv)
 
-    @torch.no_grad()
     def update_sigma(self):
         if self.training:
             if self.total_iters % self.update_freq == 0:
@@ -204,8 +201,8 @@ class SOC(nn.Module):
             self.total_iters = self.total_iters + 1
         else:
             update_iters = 0
-        random_conv_filter_T = transpose_filter(self.random_conv_filter.detach())
-        conv_filter = 0.5 * (self.random_conv_filter.detach() - random_conv_filter_T.detach())
+        random_conv_filter_T = transpose_filter(self.random_conv_filter)
+        conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         # pad_size = conv_filter.shape[2] // 2
         dims = (1, 2, 3, 4)
         with torch.no_grad():
@@ -238,18 +235,17 @@ class SOC(nn.Module):
         func = torch.min
         # add sum by dimension because we deal with 5-dimensional tensor and we want
         # to compute approximation for each group separately
-        sigma1 = torch.sum((conv_filter * self.u1 * self.v1).detach(), dim=dims)
-        sigma2 = torch.sum((conv_filter * self.u2 * self.v2).detach(), dim=dims)
-        sigma3 = torch.sum((conv_filter * self.u3 * self.v3).detach(), dim=dims)
-        sigma4 = torch.sum((conv_filter * self.u4 * self.v4).detach(), dim=dims)
+        sigma1 = torch.sum((conv_filter * self.u1 * self.v1), dim=dims)
+        sigma2 = torch.sum((conv_filter * self.u2 * self.v2), dim=dims)
+        sigma3 = torch.sum((conv_filter * self.u3 * self.v3), dim=dims)
+        sigma4 = torch.sum((conv_filter * self.u4 * self.v4), dim=dims)
         sigma = func(func(func(sigma1, sigma2), sigma3), sigma4)
         return sigma.view(-1, 1, 1, 1, 1)
 
     def forward(self, x):
         random_conv_filter_T = transpose_filter(self.random_conv_filter).contiguous()
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
-        with torch.no_grad():
-            sigma = self.update_sigma()
+        sigma = self.update_sigma()
         # sigma = 1
         conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
             self.groups * self.max_channels,
