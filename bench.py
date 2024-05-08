@@ -22,16 +22,6 @@ from utils import (
 import torch.utils.benchmark as benchmark
 
 logger = logging.getLogger(__name__)
-criterion = nn.CrossEntropyLoss()
-
-
-def fwd(model, opt, X, y):
-    output = model(X)
-    ce_loss = criterion(output, y)
-    opt.zero_grad(set_to_none=True)
-    ce_loss.backward()
-    opt.step()
-
 
 def warmup():
     linear = nn.Linear(10000, 512, device="cuda")
@@ -61,6 +51,21 @@ def train_epoch_bench(model, loader, loss, opt):
         train_acc += (output.max(1)[1] == y).sum().item()
         train_n += y.size(0)
 
+@torch.no_grad()
+def eval_epoch(model, loader, loss):
+    model.eval()
+    test_loss = 0
+    test_acc = 0
+    test_n = 0
+    for _, (X, y) in enumerate(loader):
+        X, y = X.cuda(), y.cuda()
+
+        output = model(X)
+        ce_loss = loss(output, y)
+
+        test_loss += ce_loss * y.size(0)
+        test_acc += (output.max(1)[1] == y).sum().item()
+        test_n += y.size(0)
 
 @hydra.main(config_path="conf", config_name="config_benchmark", version_base=None)
 def main(args):
@@ -107,6 +112,7 @@ def main(args):
         lr=args.lr_max,
         momentum=args.momentum
     )
+    criterion = nn.CrossEntropyLoss()
 
     t0 = benchmark.Timer(stmt="bench(model, loader, loss, opt)", globals={
         "bench": train_epoch_bench,
@@ -117,11 +123,22 @@ def main(args):
     })
     torch.cuda.empty_cache()
 
-    time = t0.timeit(5).mean
-    wandb.log({
-        "time": time
+    train_time = t0.timeit(5).mean
+    torch.cuda.empty_cache()
+
+    t1 = benchmark.Timer(stmt="bench(model, loader, loss)", globals={
+        "bench": eval_epoch,
+        "model": model,
+        "loader": test_loader,
+        "loss": criterion
     })
-    print(f"{args.model_name}-{args.block_size*5}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}, time: {time}")
+    test_time = t1.timeit(5).mean
+
+    wandb.log({
+        "train_time": train_time,
+        "test_time": test_time
+    })
+    print(f"{args.model_name}-{args.block_size*5}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}, train_time: {train_time}, test_time: {test_time}")
     wandb.finish()
 
 

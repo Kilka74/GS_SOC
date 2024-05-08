@@ -203,7 +203,7 @@ def main(args):
     total_time = time.time() - start_test_time
     
     logger.info("Best Epoch \t Test Loss \t Test Acc \t Robust Acc \t  Mean" "Cert \t Test Time")
-    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', best_epoch, test_loss, test_acc, mean_cert, robust_acc,  total_time)
+    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', best_epoch, test_loss, test_acc, robust_acc, mean_cert, total_time)
 
     # Evaluation at last model
     model_test.load_state_dict(torch.load(last_model_path))
@@ -215,7 +215,7 @@ def main(args):
     total_time = time.time() - start_test_time
     
     logger.info("Last Epoch \t Test Loss \t Test Acc \t Robust Acc \t  Mean" "Cert \t Test Time")
-    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', epoch, test_loss, test_acc, mean_cert, robust_acc,  total_time)
+    logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f', epoch, test_loss, test_acc, robust_acc, mean_cert, total_time)
     wandb.finish()
 
 if __name__ == "__main__":
