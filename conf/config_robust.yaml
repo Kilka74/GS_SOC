@@ -10,12 +10,12 @@ out_dir: robust
 dataset: cifar100
 data_dir: cifar100-data
 init_channels: 32
-activation: minmax_permuted
+activation: minmax
 conv_layer: monarch_soc
 groups: 4 4
 seed: 42
 weight_decay: 5e-4
-block_size: 1
+block_size: 3
 # hydra:
 #   mode: MULTIRUN
 #   sweeper:

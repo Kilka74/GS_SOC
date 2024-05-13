@@ -40,7 +40,7 @@ def main(args):
     args.out_dir += '_' + str(args.block_size) 
     args.out_dir += '_' + str(args.conv_layer)
     args.out_dir += '_' + str(args.init_channels)
-    args.out_dir += '_' + "maxmin"
+    args.out_dir += '_' + str(args.activation)
     args.out_dir += '_' + str(args.groups)
     
     
@@ -78,7 +78,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        tags=["run_with_new_permutation"],
+        # tags=["run_with_new_permutation"],
         name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,

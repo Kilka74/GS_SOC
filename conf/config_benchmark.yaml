@@ -3,13 +3,13 @@ lr_max: 0.1
 momentum: 0.9
 epsilon: 36
 seed: 42
-dataset: cifar10
-data_dir: ./cifar10-data-3
+dataset: cifar100
+data_dir: ./cifar100-data-3
 wandb_key: 
 lr_scheduler: multistep
 model_name: LipConvnet
 init_channels: 32
-activation: maxmin
+activation: minmax
 weight_decay: 5e-4
 block_size: 1 2 3 4 5
 hydra:

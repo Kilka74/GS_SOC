@@ -36,8 +36,8 @@ def warmup():
 def train_epoch_bench(model, loader, loss, opt):
     model.train()
     train_loss = 0
-    train_acc = 0
-    train_n = 0
+    # train_acc = 0
+    # train_n = 0
     for _, (X, y) in enumerate(loader):
         X, y = X.cuda(), y.cuda()
 
@@ -48,24 +48,25 @@ def train_epoch_bench(model, loader, loss, opt):
         opt.step()
 
         train_loss += ce_loss.item() * y.size(0)
-        train_acc += (output.max(1)[1] == y).sum().item()
-        train_n += y.size(0)
+        # train_acc += (output.max(1)[1] == y).sum().item()
+        # train_n += y.size(0)
 
 @torch.no_grad()
 def eval_epoch(model, loader, loss):
     model.eval()
     test_loss = 0
-    test_acc = 0
-    test_n = 0
-    for _, (X, y) in enumerate(loader):
-        X, y = X.cuda(), y.cuda()
+    # test_acc = 0
+    # test_n = 0
+    with torch.no_grad():
+        for _, (X, y) in enumerate(loader):
+            X, y = X.cuda(), y.cuda()
 
-        output = model(X)
-        ce_loss = loss(output, y)
+            output = model(X)
+            ce_loss = loss(output, y)
 
-        test_loss += ce_loss * y.size(0)
-        test_acc += (output.max(1)[1] == y).sum().item()
-        test_n += y.size(0)
+            test_loss += ce_loss.item() * y.size(0)
+            # test_acc += (output.max(1)[1] == y).sum().item()
+            # test_n += y.size(0)
 
 @hydra.main(config_path="conf", config_name="config_benchmark", version_base=None)
 def main(args):
@@ -85,6 +86,7 @@ def main(args):
         wandb.init(
             entity="kilka74",
             project="MonarchSOC",
+            tags=[args.dataset, "benchmark"],
             name=f"benchmark epoch time {args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
             config={
                 "batch_size": args.batch_size,
@@ -126,7 +128,6 @@ def main(args):
 
             train_time = t0.timeit(5).mean
             torch.cuda.empty_cache()
-
             t1 = benchmark.Timer(stmt="bench(model, loader, loss)", globals={
                 "bench": eval_epoch,
                 "model": model,

@@ -20,10 +20,10 @@ class MinMaxPermuted(nn.Module):
     def forward(self, z):
         a, b, = z[:, ::2], z[:, 1::2]
         c, d = torch.min(a, b), torch.max(a, b)
-        x = torch.empty_like(z, device=z.device, requires_grad=True)
-        x[:, ::2] = c
-        x[:, 1::2] = d
-        return x
+        permutation = torch.zeros(z.shape[1], dtype=torch.int, device=z.device)
+        permutation[::2] = torch.arange(z.shape[1] // 2, dtype=torch.int)
+        permutation[1::2] = torch.arange(z.shape[1] // 2, dtype=torch.int) + z.shape[1]// 2
+        return torch.cat([c, d], dim=1)[:, permutation]
 
 class HouseHolder(nn.Module):
     def __init__(self, channels):
