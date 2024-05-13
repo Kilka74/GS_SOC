@@ -28,7 +28,7 @@ def init_model(args):
     else:
         groups = args.groups
 
-    model = LipConvNet(args.conv_layer, init_channels=args.init_channels, 
+    model = LipConvNet(args.conv_layer, args.activation, init_channels=args.init_channels, 
                        block_size=args.block_size, num_classes=num_classes, 
                        groups=groups)
     return model
@@ -78,6 +78,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
+        tags=["run_with_new_permutation"],
         name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
@@ -90,6 +91,7 @@ def main(args):
             "max_lr": args.lr_max,
             "weight_decay": args.weight_decay,
             "momentum": args.momentum,
+            "activation": args.activation,
             "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
             "number of all parameters": sum(p.numel() for p in model.parameters()),
             "groups": groups

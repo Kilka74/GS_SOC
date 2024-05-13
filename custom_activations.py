@@ -4,6 +4,27 @@ import torch.nn as nn
 import numpy as np
 
 
+class MinMax(nn.Module):
+    def __init__(self):
+        super(MinMax, self).__init__()
+
+    def forward(self, z, axis=1):
+        a, b = z.split(z.shape[axis] // 2, axis)
+        c, d = torch.min(a, b), torch.max(a, b)
+        return torch.cat([c, d], dim=axis)
+
+class MinMaxPermuted(nn.Module):
+    def __init__(self):
+        super(MinMaxPermuted, self).__init__()
+    
+    def forward(self, z):
+        a, b, = z[:, ::2], z[:, 1::2]
+        c, d = torch.min(a, b), torch.max(a, b)
+        x = torch.empty_like(z, device=z.device, requires_grad=True)
+        x[:, ::2] = c
+        x[:, 1::2] = d
+        return x
+
 class HouseHolder(nn.Module):
     def __init__(self, channels):
         super(HouseHolder, self).__init__()

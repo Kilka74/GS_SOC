@@ -376,13 +376,10 @@ class MonarchSOC(nn.Module):
 
     def forward(self, x):
         x = self.soc1(x)
-        if isinstance(self.groups, tuple):
-            x = channel_shuffle(x, self.groups_2)
-        else:
-            x = channel_shuffle(x, self.groups_1)
+        x = channel_shuffle(x, self.groups_1)
         x = self.soc2(x)
         if isinstance(self.groups, tuple):
-            return channel_shuffle(x, self.out_channels // self.groups_2)
+            return channel_shuffle(x, self.groups_2)
         return channel_shuffle(x, self.out_channels // self.groups_1)
     
 

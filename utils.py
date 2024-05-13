@@ -6,7 +6,7 @@ import math
 import numpy as np
 from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed
 from original_soc import SOC as OriginalSOC
-from custom_activations import HouseHolder, HouseHolder_Order_2
+from custom_activations import HouseHolder, HouseHolder_Order_2, MinMax, MinMaxPermuted
 
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2507, 0.2507, 0.2507)
@@ -266,6 +266,8 @@ activation_dict = {
     "sigmoid": F.sigmoid,
     "tanh": F.tanh,
     "softplus": F.softplus,
+    "minmax": MinMax(),
+    "minmax_permuted": MinMaxPermuted()
 }
 
 
