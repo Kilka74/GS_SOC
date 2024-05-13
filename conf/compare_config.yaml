@@ -1,0 +1,10 @@
+batch_size: 128
+kernel_size: 3
+channels: 32 64 128 256 512 1024 2048 4096
+wandb_key:
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      +hidden_size: 7, 14
+      +groups: 1, 2, 4, 8, 16, 32

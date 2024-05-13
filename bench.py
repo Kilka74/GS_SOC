@@ -69,8 +69,6 @@ def eval_epoch(model, loader, loss):
 
 @hydra.main(config_path="conf", config_name="config_benchmark", version_base=None)
 def main(args):
-    if args.groups == 1:  # crutch for benchmarking of soc layer via config
-        args.conv_layer = "soc"
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -79,67 +77,72 @@ def main(args):
     train_loader, test_loader = get_loaders(
         args.data_dir, args.batch_size, args.dataset
     )
-    sleep(100)
-    for i in range(5):
+    for _ in range(10):
         warmup()
-    
-    model = init_model_robust(args).cuda()
-    wandb.login(key=args.wandb_key, relogin=True)
-    wandb.init(
-        entity="kilka74",
-        project="MonarchSOC",
-        name=f"benchmark epoch time {args.model_name}-{args.block_size*5}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
-        config={
-            "batch_size": args.batch_size,
-            "model_name": args.model_name,
-            "dataset": args.dataset,
-            "seed": args.seed,
-            "activation": args.activation,
-            "conv_layer": args.conv_layer,
-            "min_lr": args.lr_min,
-            "max_lr": args.lr_max,
-            "weight_decay": args.weight_decay,
-            "momentum": args.momentum,
-            "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
-            "number of all parameters": sum(p.numel() for p in model.parameters()),
-            "groups": args.groups,
-        }
-    )
 
-    opt = torch.optim.SGD(
-        model.parameters(),
-        weight_decay=args.weight_decay,
-        lr=args.lr_max,
-        momentum=args.momentum
-    )
-    criterion = nn.CrossEntropyLoss()
+    if (isinstance(args.groups, int)) or (args.conv_layer == "monarch_soc"):
+        wandb.login(key=args.wandb_key, relogin=True)
+        wandb.init(
+            entity="kilka74",
+            project="MonarchSOC",
+            name=f"benchmark epoch time {args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
+            config={
+                "batch_size": args.batch_size,
+                "model_name": args.model_name,
+                "dataset": args.dataset,
+                "seed": args.seed,
+                "activation": args.activation,
+                "conv_layer": args.conv_layer,
+                "max_lr": args.lr_max,
+                "weight_decay": args.weight_decay,
+                "momentum": args.momentum,
+                "groups": args.groups,
+            }
+        )
 
-    t0 = benchmark.Timer(stmt="bench(model, loader, loss, opt)", globals={
-        "bench": train_epoch_bench,
-        "model" : model,
-        "loader": train_loader,
-        "loss": criterion,
-        "opt": opt
-    })
-    torch.cuda.empty_cache()
+        block_sizes = list(map(int, args.block_size.split()))
 
-    train_time = t0.timeit(5).mean
-    torch.cuda.empty_cache()
+        for block_size in block_sizes:
+            torch.cuda.empty_cache()
+            args.block_size = block_size
+            model = init_model_robust(args).cuda()
+                
+            opt = torch.optim.SGD(
+                model.parameters(),
+                weight_decay=args.weight_decay,
+                lr=args.lr_max,
+                momentum=args.momentum
+            )
+            criterion = nn.CrossEntropyLoss()
 
-    t1 = benchmark.Timer(stmt="bench(model, loader, loss)", globals={
-        "bench": eval_epoch,
-        "model": model,
-        "loader": test_loader,
-        "loss": criterion
-    })
-    test_time = t1.timeit(5).mean
+            t0 = benchmark.Timer(stmt="bench(model, loader, loss, opt)", globals={
+                "bench": train_epoch_bench,
+                "model" : model,
+                "loader": train_loader,
+                "loss": criterion,
+                "opt": opt
+            })
+            torch.cuda.empty_cache()
 
-    wandb.log({
-        "train_time": train_time,
-        "test_time": test_time
-    })
-    print(f"{args.model_name}-{args.block_size*5}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}, train_time: {train_time}, test_time: {test_time}")
-    wandb.finish()
+            train_time = t0.timeit(5).mean
+            torch.cuda.empty_cache()
+
+            t1 = benchmark.Timer(stmt="bench(model, loader, loss)", globals={
+                "bench": eval_epoch,
+                "model": model,
+                "loader": test_loader,
+                "loss": criterion
+            })
+            test_time = t1.timeit(5).mean
+
+            wandb.log({
+                "lipconvnet": block_size * 5,
+                "train_time": train_time,
+                "test_time": test_time,
+                "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
+                "number of all parameters": sum(p.numel() for p in model.parameters()),
+            })
+        wandb.finish()
 
 
 if __name__ == "__main__":

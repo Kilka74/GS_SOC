@@ -1,5 +1,4 @@
 batch_size: 128
-lr_min: 0.0
 lr_max: 0.1
 momentum: 0.9
 epsilon: 36
@@ -12,10 +11,10 @@ model_name: LipConvnet
 init_channels: 32
 activation: maxmin
 weight_decay: 5e-4
-conv_layer: monarch_soc
+block_size: 1 2 3 4 5
 hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      +block_size: 1, 2, 3, 4, 5
-      +groups: 1, 4, 8, 16, 8 8, 16 16
+      +conv_layer: monarch_soc, soc, permuted_soc, reversed_monarch_soc
+      +groups: 4 4, 1, 4, 8, 16, 8 8, 16 16

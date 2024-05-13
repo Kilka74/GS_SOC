@@ -384,3 +384,115 @@ class MonarchSOC(nn.Module):
         if isinstance(self.groups, tuple):
             return channel_shuffle(x, self.out_channels // self.groups_2)
         return channel_shuffle(x, self.out_channels // self.groups_1)
+    
+
+
+class MonarchSOCReversed(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=None,
+        bias=True,
+        groups=1,
+        train_terms=5,
+        eval_terms=12,
+        init_iters=50,
+        update_iters=1,
+        update_freq=200,
+        correction=0.7,
+        device="cuda",
+    ):
+        super(MonarchSOCReversed, self).__init__()
+
+        self.groups = groups
+
+        self.soc1 = SOC(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            groups=self.groups,
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+        )
+
+        self.soc2 = SOC(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=padding,
+            bias=bias,
+            groups=self.groups, # fix for correct intuition in number of blocks
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+        )
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        if x.shape[1] % self.groups == 0:
+            x = channel_shuffle(x, self.groups)
+        x = self.soc1(x)
+        x = channel_shuffle(x, self.groups)
+        x = self.soc2(x)
+        return x
+
+
+class PermutedSOC(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=None,
+        bias=True,
+        groups=1,
+        train_terms=5,
+        eval_terms=12,
+        init_iters=50,
+        update_iters=1,
+        update_freq=200,
+        correction=0.7,
+        device="cuda",
+    ):
+        super(PermutedSOC, self).__init__()
+
+        self.groups = groups
+
+        self.soc1 = SOC(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            groups=self.groups,
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+        )
+    
+    def forward(self, x):
+        if x.shape[1] % self.groups == 0:
+            x = channel_shuffle(x, self.groups)
+        return self.soc1(x)
