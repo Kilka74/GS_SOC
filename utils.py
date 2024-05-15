@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 import math
 import numpy as np
-from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed
+from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed, MonarchSOCAccelerated
 from original_soc import SOC as OriginalSOC
 from custom_activations import HouseHolder, HouseHolder_Order_2, MinMax, MinMaxPermuted
 
@@ -257,7 +257,15 @@ def evaluate_certificates(test_loader, model, L, epsilon=36.0):
     return mean_loss, mean_acc, mean_certificates, robust_correct
 
 
-conv_mapping = {"standard": nn.Conv2d, "soc": SOC, "monarch_soc": MonarchSOC, "original_soc": OriginalSOC, "permuted_soc": PermutedSOC, "reversed_monarch_soc": MonarchSOCReversed}
+conv_mapping = {
+    "standard": nn.Conv2d,
+    "soc": SOC,
+    "monarch_soc": MonarchSOC,
+    "original_soc": OriginalSOC,
+    "permuted_soc": PermutedSOC,
+    "reversed_monarch_soc": MonarchSOCReversed,
+    "accelerated_monarch_soc": MonarchSOCAccelerated
+}
 
 
 activation_dict = {

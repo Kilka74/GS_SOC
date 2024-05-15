@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed
+from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed, MonarchSOCAccelerated
 from original_soc import SOC as OriginalSOC
 
 from custom_activations import *

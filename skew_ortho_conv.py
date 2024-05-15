@@ -291,6 +291,99 @@ class SOC(nn.Module):
         return z
 
 
+class LinearSOC(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        stride=1,
+        padding=None,
+        bias=True,
+        groups=1,
+        device="cuda",
+    ):
+        self.groups = groups
+        self.device = device
+        self.stride = stride
+        self.out_channels = out_channels
+        self.in_channels = in_channels * stride * stride
+        assert max(self.out_channels, self.in_channels) % self.groups == 0
+        self.max_channels = max(self.out_channels, self.in_channels) // self.groups
+
+        self.random_conv_filter = nn.Parameter(
+            torch.randn(
+                self.groups,
+                self.max_channels,
+                self.max_channels,
+                device=self.device
+            ),
+            requires_grad=True,
+        )
+
+        self.enable_bias = bias
+        if self.enable_bias:
+            self.bias = nn.Parameter(
+                torch.randn(self.out_channels, device=self.device), requires_grad=True
+            )
+        else:
+            self.bias = None
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
+        nn.init.normal_(self.random_conv_filter, std=stdv)
+
+        stdv = 1.0 / np.sqrt(self.out_channels)
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, -stdv, stdv)
+    
+    def cayley_group(self, data):
+        b, r, c = data.shape
+        # Ensure the input matrix is skew-symmetric
+        skew = 0.5 * (data - data.transpose(1, 2))
+        I = torch.eye(r, device=data.device).unsqueeze(0).expand(b, r, c)
+
+        # Perform the Cayley parametrization
+        Q = torch.linalg.solve(I - skew, I + skew, left=False)
+        return Q.unsqueeze(-1).unsqueeze(-1)
+
+    def forward(self, x):
+        conv_filter_ortho = self.cayley_group(self.random_conv_filter).view(
+            self.groups * self.max_channels,
+            self.max_channels,
+            1,
+            1,
+        ).contiguous()
+
+        if self.stride > 1:
+            x = einops.rearrange(
+                x,
+                "b c (w k1) (h k2) -> b (c k1 k2) w h",
+                k1=self.stride,
+                k2=self.stride,
+            )
+
+        if self.out_channels > self.in_channels:
+            diff_channels = self.out_channels - self.in_channels
+            p4d = (0, 0, 0, 0, 0, diff_channels, 0, 0)
+            z = F.pad(x, p4d)
+        else:
+            z = x
+        
+        z = F.conv2d(
+            z,
+            conv_filter_ortho,
+            groups=self.groups
+        )
+
+        if self.out_channels < self.in_channels:
+            z = z[:, :self.out_channels, :, :]
+
+        if self.enable_bias:
+            z = z + self.bias.view(1, -1, 1, 1)
+        return z
+
+
 # https://github.com/jaxony/ShuffleNet/blob/e9bf42f0cda8dda518cafffd515654cc04584e7a/model.py#L36C1-L53C13
 def channel_shuffle(x, groups):
     batchsize, num_channels, height, width = x.data.size()
@@ -363,7 +456,7 @@ class MonarchSOC(nn.Module):
             stride=1,
             padding=padding,
             bias=bias,
-            groups=self.groups_2, # fix for correct intuition in number of blocks
+            groups=self.groups_2,
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -381,7 +474,66 @@ class MonarchSOC(nn.Module):
         if isinstance(self.groups, tuple):
             return channel_shuffle(x, self.groups_2)
         return channel_shuffle(x, self.out_channels // self.groups_1)
-    
+
+
+class MonarchSOCAccelerated(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=None,
+        bias=True,
+        groups=1,
+        train_terms=5,
+        eval_terms=12,
+        init_iters=50,
+        update_iters=1,
+        update_freq=200,
+        correction=0.7,
+        device="cuda",
+    ):
+        super(MonarchSOCAccelerated, self).__init__()
+
+        self.groups = groups
+        self.groups_1 = groups[0]
+        self.groups_2 = groups[1]
+
+        self.soc1 = SOC(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            groups=self.groups_1,
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+        )
+
+        self.soc2 = LinearSOC(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            stride=1,
+            padding=padding,
+            bias=bias,
+            groups=self.groups_2,
+            device=device,
+        )
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x = channel_shuffle(x, self.groups_1)
+        x = self.soc1(x)
+        x = channel_shuffle(x, self.groups_2)
+        return self.soc2(x)
+
 
 
 class MonarchSOCReversed(nn.Module):
