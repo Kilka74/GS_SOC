@@ -78,7 +78,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        # tags=["run_with_new_permutation"],
+        tags=["matrix_exp"],
         name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,

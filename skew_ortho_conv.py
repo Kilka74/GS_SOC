@@ -302,6 +302,7 @@ class LinearSOC(nn.Module):
         groups=1,
         device="cuda",
     ):
+        super(LinearSOC, self).__init__()
         self.groups = groups
         self.device = device
         self.stride = stride
@@ -346,9 +347,14 @@ class LinearSOC(nn.Module):
         # Perform the Cayley parametrization
         Q = torch.linalg.solve(I - skew, I + skew, left=False)
         return Q.unsqueeze(-1).unsqueeze(-1)
+    
+    def matrix_exp_group(self, data):
+        skew = 0.5 * (data - data.transpose(1, 2))
+
+        return torch.matrix_exp(skew).unsqueeze(-1).unsqueeze(-1)
 
     def forward(self, x):
-        conv_filter_ortho = self.cayley_group(self.random_conv_filter).view(
+        conv_filter_ortho = self.matrix_exp_group(self.random_conv_filter).view(
             self.groups * self.max_channels,
             self.max_channels,
             1,
@@ -452,7 +458,7 @@ class MonarchSOC(nn.Module):
         self.soc2 = SOC(
             in_channels=out_channels,
             out_channels=out_channels,
-            kernel_size=kernel_size,
+            kernel_size=1,
             stride=1,
             padding=padding,
             bias=bias,
@@ -529,7 +535,8 @@ class MonarchSOCAccelerated(nn.Module):
         self.out_channels = out_channels
 
     def forward(self, x):
-        x = channel_shuffle(x, self.groups_1)
+        if x.shape[1] % self.groups_1 == 0:
+            x = channel_shuffle(x, self.groups_1)
         x = self.soc1(x)
         x = channel_shuffle(x, self.groups_2)
         return self.soc2(x)
