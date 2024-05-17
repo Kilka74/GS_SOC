@@ -81,7 +81,9 @@ def main(args):
     for _ in range(10):
         warmup()
 
-    if (isinstance(args.groups, int)) or (args.conv_layer == "monarch_soc"):
+    torch.backends.cudnn.benchmark = True
+
+    if (isinstance(args.groups, int)) or (args.conv_layer == "monarch_soc") or (args.conv_layer == "accelerated_monarch_soc"):
         wandb.login(key=args.wandb_key, relogin=True)
         wandb.init(
             entity="kilka74",

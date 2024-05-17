@@ -67,6 +67,7 @@ def main(args):
     std = cifar10_std
 
     # Evaluation at early stopping
+    torch.backends.cudnn.benchmark = True
     model = init_model(args).cuda()
     model.train()
     if isinstance(args.groups, str):
@@ -78,7 +79,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        tags=["matrix_exp"],
+        tags=[],
         name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,

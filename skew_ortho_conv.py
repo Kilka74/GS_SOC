@@ -187,8 +187,6 @@ class SOC(nn.Module):
     def reset_parameters(self):
         stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
         nn.init.normal_(self.random_conv_filter, std=stdv)
-        if self.kernel_size == 1:
-            nn.init.zeros_(self.random_conv_filter)
 
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
@@ -461,7 +459,7 @@ class MonarchSOC(nn.Module):
         self.soc2 = SOC(
             in_channels=out_channels,
             out_channels=out_channels,
-            kernel_size=1,
+            kernel_size=kernel_size,
             stride=1,
             padding=padding,
             bias=bias,
