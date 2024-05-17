@@ -187,6 +187,8 @@ class SOC(nn.Module):
     def reset_parameters(self):
         stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
         nn.init.normal_(self.random_conv_filter, std=stdv)
+        if self.kernel_size == 1:
+            nn.init.zeros_(self.random_conv_filter)
 
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
@@ -331,8 +333,9 @@ class LinearSOC(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
-        nn.init.normal_(self.random_conv_filter, std=stdv)
+        # stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
+        nn.init.zeros_(self.random_conv_filter)
+        # nn.init.normal_(self.random_conv_filter, std=stdv)
 
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
@@ -477,6 +480,7 @@ class MonarchSOC(nn.Module):
         x = self.soc1(x)
         x = channel_shuffle(x, self.groups_1)
         x = self.soc2(x)
+        # return x
         if isinstance(self.groups, tuple):
             return channel_shuffle(x, self.groups_2)
         return channel_shuffle(x, self.out_channels // self.groups_1)
