@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 import math
 import numpy as np
-from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed, MonarchSOCAccelerated
+from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed, MonarchSOCAccelerated, LPRSOC
 from original_soc import SOC as OriginalSOC
 from custom_activations import HouseHolder, HouseHolder_Order_2, MinMax, MinMaxPermuted
 
@@ -264,7 +264,8 @@ conv_mapping = {
     "original_soc": OriginalSOC,
     "permuted_soc": PermutedSOC,
     "reversed_monarch_soc": MonarchSOCReversed,
-    "accelerated_monarch_soc": MonarchSOCAccelerated
+    "accelerated_monarch_soc": MonarchSOCAccelerated,
+    "lpr_soc": LPRSOC
 }
 
 

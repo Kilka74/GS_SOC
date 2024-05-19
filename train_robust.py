@@ -79,8 +79,8 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        tags=[args.dataset, f"lipconvnet_{args.block_size*5}"],
-        name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, groups={groups}, wd={args.weight_decay}",
+        tags=[args.dataset, f"lipconvnet-{args.block_size*5}"],
+        name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, {args.conv_layer}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,

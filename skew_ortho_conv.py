@@ -123,6 +123,7 @@ class SOC(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
+        zero_init=False
     ):
         super(SOC, self).__init__()
         assert (stride == 1) or (stride == 2)
@@ -143,6 +144,8 @@ class SOC(nn.Module):
 
         if kernel_size == 1:
             correction = 1.0
+        
+        self.zero_init = zero_init
 
         self.random_conv_filter = nn.Parameter(
             torch.randn(
@@ -185,12 +188,17 @@ class SOC(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
-        nn.init.normal_(self.random_conv_filter, std=stdv)
+        if self.zero_init:
+            nn.init.zeros_(self.random_conv_filter)
+            if self.bias is not None:
+                nn.init.zeros_(self.bias)
+        else:
+            stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
+            nn.init.normal_(self.random_conv_filter, std=stdv)
 
-        stdv = 1.0 / np.sqrt(self.out_channels)
-        if self.bias is not None:
-            nn.init.uniform_(self.bias, -stdv, stdv)
+            stdv = 1.0 / np.sqrt(self.out_channels)
+            if self.bias is not None:
+                nn.init.uniform_(self.bias, -stdv, stdv)
 
     def update_sigma(self):
         if self.training:
@@ -654,3 +662,62 @@ class PermutedSOC(nn.Module):
         if x.shape[1] % self.groups == 0:
             x = channel_shuffle(x, self.groups)
         return self.soc1(x)
+
+class LPRSOC(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=None,
+        bias=True,
+        groups=1,
+        train_terms=5,
+        eval_terms=12,
+        init_iters=50,
+        update_iters=1,
+        update_freq=200,
+        correction=0.7,
+        device="cuda",
+    ):
+        self.groups = groups
+        self.soc1 = SOC(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            groups=self.groups,
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+            zero_init=True
+        )
+
+        self.soc2 = SOC(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=padding,
+            bias=bias,
+            groups=self.groups, # fix for correct intuition in number of blocks
+            train_terms=train_terms,
+            eval_terms=eval_terms,
+            init_iters=init_iters,
+            update_iters=update_iters,
+            update_freq=update_freq,
+            correction=correction,
+            device=device,
+        )
+    
+    def forward(self, x):
+        x = self.soc1(x)
+        x = channel_shuffle(x, groups=self.groups)
+        return self.soc2(x)
