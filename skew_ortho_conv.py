@@ -698,7 +698,7 @@ class LPRSOC(nn.Module):
             update_freq=update_freq,
             correction=correction,
             device=device,
-            zero_init=True
+            zero_init=False
         )
 
         self.soc2 = SOC(
