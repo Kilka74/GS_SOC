@@ -255,7 +255,7 @@ class SOC(nn.Module):
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
         # sigma = 1
-        conv_filter_n = ((self.correction * conv_filter_skew) / sigma).view(
+        conv_filter_n = ((self.correction * conv_filter_skew) / (sigma + 1e-12)).view(
             self.groups * self.max_channels,
             self.max_channels,
             self.kernel_size,
@@ -681,6 +681,7 @@ class LPRSOC(nn.Module):
         correction=0.7,
         device="cuda",
     ):
+        super(LPRSOC, self).__init__()
         self.groups = groups
         self.soc1 = SOC(
             in_channels=in_channels,
