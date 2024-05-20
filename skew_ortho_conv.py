@@ -467,11 +467,11 @@ class MonarchSOC(nn.Module):
         self.soc2 = SOC(
             in_channels=out_channels,
             out_channels=out_channels,
-            kernel_size=kernel_size,
+            kernel_size=1,
             stride=1,
             padding=padding,
             bias=bias,
-            groups=self.groups_2,
+            groups=1,
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -484,9 +484,9 @@ class MonarchSOC(nn.Module):
 
     def forward(self, x):
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups_1)
+        # x = channel_shuffle(x, self.groups_1)
         x = self.soc2(x)
-        # return x
+        return x
         if isinstance(self.groups, tuple):
             return channel_shuffle(x, self.groups_2)
         return channel_shuffle(x, self.out_channels // self.groups_1)
@@ -698,7 +698,7 @@ class LPRSOC(nn.Module):
             update_freq=update_freq,
             correction=correction,
             device=device,
-            zero_init=False
+            zero_init=True
         )
 
         self.soc2 = SOC(
