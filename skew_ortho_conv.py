@@ -193,7 +193,7 @@ class SOC(nn.Module):
             if self.bias is not None:
                 nn.init.zeros_(self.bias)
         else:
-            stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
+            stdv = 1.0 / np.sqrt(self.max_channels)
             nn.init.normal_(self.random_conv_filter, std=stdv)
 
             stdv = 1.0 / np.sqrt(self.out_channels)
