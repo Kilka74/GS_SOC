@@ -255,6 +255,8 @@ class SOC(nn.Module):
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
         # sigma = 1
+        if torch.max(sigma) < 1e-6:
+            sigma = 1    
         conv_filter_n = ((self.correction * conv_filter_skew) / (sigma + 1e-12)).view(
             self.groups * self.max_channels,
             self.max_channels,
@@ -686,7 +688,7 @@ class LPRSOC(nn.Module):
         self.soc1 = SOC(
             in_channels=in_channels,
             out_channels=out_channels,
-            kernel_size=kernel_size,
+            kernel_size=1,
             stride=stride,
             padding=padding,
             bias=bias,
