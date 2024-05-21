@@ -79,7 +79,7 @@ def main(args):
     wandb.init(
         entity="kilka74",
         project="MonarchSOC",
-        tags=[args.dataset, f"lipconvnet-{args.block_size*5}"],
+        tags=[args.dataset, f"lipconvnet-{args.block_size*5}", "groups=1 with permutations"],
         name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, {args.conv_layer}, groups={groups}, wd={args.weight_decay}",
         config={
             "batch_size": args.batch_size,
