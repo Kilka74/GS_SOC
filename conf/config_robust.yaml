@@ -7,12 +7,12 @@ model_name: LipConvnet
 momentum: 0.9
 epsilon: 36
 out_dir: robust
-dataset: cifar100
-data_dir: cifar100-data
+dataset: cifar10
+data_dir: cifar10-data
 init_channels: 32
 activation: minmax_permuted
-conv_layer: lpr_soc
-groups: 4
+conv_layer: accelerated_monarch_soc
+groups: 4 2
 seed: 42
 weight_decay: 5e-4
 block_size: 3
