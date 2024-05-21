@@ -341,10 +341,10 @@ class LinearSOC(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        # stdv = 1.0 / np.sqrt(self.max_channels * self.groups)
-        nn.init.zeros_(self.random_conv_filter)
-        # nn.init.normal_(self.random_conv_filter, std=stdv)
-
+        stdv = 1.0 / np.sqrt(self.max_channels)
+        # nn.init.zeros_(self.random_conv_filter)
+        nn.init.normal_(self.random_conv_filter, std=stdv)
+        
         stdv = 1.0 / np.sqrt(self.out_channels)
         if self.bias is not None:
             nn.init.uniform_(self.bias, -stdv, stdv)
@@ -547,10 +547,10 @@ class MonarchSOCAccelerated(nn.Module):
         self.out_channels = out_channels
 
     def forward(self, x):
-        if x.shape[1] % self.groups_1 == 0:
-            x = channel_shuffle(x, self.groups_1)
+        # if x.shape[1] % self.groups_1 == 0:
+        #     x = channel_shuffle(x, self.groups_1)
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups_2)
+        # x = channel_shuffle(x, self.groups_2)
         return self.soc2(x)
 
 
@@ -688,7 +688,7 @@ class LPRSOC(nn.Module):
         self.soc1 = SOC(
             in_channels=in_channels,
             out_channels=out_channels,
-            kernel_size=1,
+            kernel_size=kernel_size,
             stride=stride,
             padding=padding,
             bias=bias,
@@ -700,7 +700,7 @@ class LPRSOC(nn.Module):
             update_freq=update_freq,
             correction=correction,
             device=device,
-            zero_init=True
+            zero_init=False
         )
 
         self.soc2 = SOC(
