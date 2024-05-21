@@ -547,10 +547,10 @@ class MonarchSOCAccelerated(nn.Module):
         self.out_channels = out_channels
 
     def forward(self, x):
-        # if x.shape[1] % self.groups_1 == 0:
-        #     x = channel_shuffle(x, self.groups_1)
+        if x.shape[1] % self.groups_1 == 0:
+            x = channel_shuffle(x, self.groups_1)
         x = self.soc1(x)
-        # x = channel_shuffle(x, self.groups_2)
+        x = channel_shuffle(x, self.groups_2)
         return self.soc2(x)
 
 
