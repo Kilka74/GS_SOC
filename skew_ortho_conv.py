@@ -703,20 +703,13 @@ class LPRSOC(nn.Module):
             zero_init=False
         )
 
-        self.soc2 = SOC(
+        self.soc2 = LinearSOC(
             in_channels=out_channels,
             out_channels=out_channels,
-            kernel_size=kernel_size,
             stride=1,
             padding=padding,
             bias=bias,
             groups=self.groups, # fix for correct intuition in number of blocks
-            train_terms=train_terms,
-            eval_terms=eval_terms,
-            init_iters=init_iters,
-            update_iters=update_iters,
-            update_freq=update_freq,
-            correction=correction,
             device=device,
         )
     
