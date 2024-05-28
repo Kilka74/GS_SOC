@@ -578,6 +578,8 @@ class MonarchSOCReversed(nn.Module):
         super(MonarchSOCReversed, self).__init__()
 
         self.groups = groups
+        self.groups_1 = groups[0]
+        self.groups_2 = groups[1]
 
         self.soc1 = SOC(
             in_channels=in_channels,
@@ -586,7 +588,7 @@ class MonarchSOCReversed(nn.Module):
             stride=stride,
             padding=padding,
             bias=bias,
-            groups=self.groups,
+            groups=self.groups[0],
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -603,7 +605,7 @@ class MonarchSOCReversed(nn.Module):
             stride=1,
             padding=padding,
             bias=bias,
-            groups=self.groups,
+            groups=self.groups[1],
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -615,11 +617,10 @@ class MonarchSOCReversed(nn.Module):
         self.out_channels = out_channels
 
     def forward(self, x):
-        if x.shape[1] % self.groups == 0:
-            x = channel_shuffle(x, self.groups)
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups)
+        x = channel_shuffle(x, self.groups_2)
         x = self.soc2(x)
+        x = channel_shuffle(x, self.out_channels // self.groups_2)
         return x
 
 
@@ -663,8 +664,8 @@ class PermutedSOC(nn.Module):
         )
     
     def forward(self, x):
-        if x.shape[1] % self.groups == 0:
-            x = channel_shuffle(x, self.groups)
+        # if x.shape[1] % self.groups == 0:
+        #     x = channel_shuffle(x, self.groups)
         return self.soc1(x)
 
 class LPRSOC(nn.Module):
