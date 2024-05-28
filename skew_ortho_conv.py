@@ -601,7 +601,7 @@ class MonarchSOCReversed(nn.Module):
         self.soc2 = SOC(
             in_channels=out_channels,
             out_channels=out_channels,
-            kernel_size=kernel_size,
+            kernel_size=1,
             stride=1,
             padding=padding,
             bias=bias,
