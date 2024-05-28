@@ -8,14 +8,7 @@ import torch.nn as nn
 import hydra
 from preactresnet import *
 from utils import (
-    upper_limit,
-    lower_limit,
-    cifar10_mean,
-    cifar10_std,
-    clamp,
     get_loaders,
-    attack_pgd,
-    evaluate_pgd,
     evaluate_standard,
 )
 
@@ -168,7 +161,6 @@ def main(args):
         train_acc = 0
         train_n = 0
         for i, (X, y) in enumerate(train_loader):
-            # with torch.autocast(device_type="cuda", dtype=torch.float16):
             X, y = X.cuda(), y.cuda()
 
             output = model(X)

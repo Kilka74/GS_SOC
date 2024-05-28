@@ -3,7 +3,6 @@ import os
 import time
 import hydra
 import wandb
-from shutil import copyfile
 
 import numpy as np
 import torch
@@ -66,7 +65,6 @@ def main(args):
 
     std = cifar10_std
 
-    # Evaluation at early stopping
     torch.backends.cudnn.benchmark = True
     model = init_model(args).cuda()
     model.train()

@@ -8,7 +8,6 @@ import einops
 
 def fantastic_four(conv_filter, num_iters=50, device="cuda"):
     groups, out_ch, in_ch, h, w = conv_filter.shape
-    dims = (1, 2, 3, 4)
     u1 = torch.randn((groups, 1, in_ch, 1, w), device=device, requires_grad=False)
     u1.data = l2_normalize(u1.data)
 
@@ -211,7 +210,6 @@ class SOC(nn.Module):
             update_iters = 0
         random_conv_filter_T = transpose_filter(self.random_conv_filter)
         conv_filter = 0.5 * (self.random_conv_filter - random_conv_filter_T)
-        # pad_size = conv_filter.shape[2] // 2
         dims = (1, 2, 3, 4)
         with torch.no_grad():
             for i in range(update_iters):
@@ -254,9 +252,7 @@ class SOC(nn.Module):
         random_conv_filter_T = transpose_filter(self.random_conv_filter).contiguous()
         conv_filter_skew = 0.5 * (self.random_conv_filter - random_conv_filter_T)
         sigma = self.update_sigma()
-        # sigma = 1
-        if torch.max(sigma) < 1e-6:
-            sigma = 1    
+  
         conv_filter_n = ((self.correction * conv_filter_skew) / (sigma + 1e-12)).view(
             self.groups * self.max_channels,
             self.max_channels,
@@ -488,7 +484,6 @@ class MonarchSOC(nn.Module):
         x = self.soc1(x)
         x = channel_shuffle(x, self.groups_1)
         x = self.soc2(x)
-        # return x
         if isinstance(self.groups, tuple):
             return channel_shuffle(x, self.groups_2)
         return channel_shuffle(x, self.out_channels // self.groups_1)
@@ -608,7 +603,7 @@ class MonarchSOCReversed(nn.Module):
             stride=1,
             padding=padding,
             bias=bias,
-            groups=self.groups, # fix for correct intuition in number of blocks
+            groups=self.groups,
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -723,7 +718,7 @@ class LPRSOC(nn.Module):
             update_iters=update_iters,
             update_freq=update_freq,
             correction=correction,
-            groups=self.groups, # fix for correct intuition in number of blocks
+            groups=self.groups,
             device=device,
         )
     

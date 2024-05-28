@@ -9,15 +9,7 @@ from preactresnet import *
 from train_standard import init_model as init_model_standard
 from train_robust import init_model as init_model_robust
 from utils import (
-    upper_limit,
-    lower_limit,
-    cifar10_mean,
-    cifar10_std,
-    clamp,
     get_loaders,
-    attack_pgd,
-    evaluate_pgd,
-    evaluate_standard,
 )
 import torch.utils.benchmark as benchmark
 
@@ -36,8 +28,6 @@ def warmup():
 def train_epoch_bench(model, loader, loss, opt):
     model.train()
     train_loss = 0
-    # train_acc = 0
-    # train_n = 0
     for _, (X, y) in enumerate(loader):
         X, y = X.cuda(), y.cuda()
 
@@ -48,15 +38,12 @@ def train_epoch_bench(model, loader, loss, opt):
         opt.step()
 
         train_loss += ce_loss.item() * y.size(0)
-        # train_acc += (output.max(1)[1] == y).sum().item()
-        # train_n += y.size(0)
+
 
 @torch.no_grad()
 def eval_epoch(model, loader, loss):
     model.eval()
     test_loss = 0
-    # test_acc = 0
-    # test_n = 0
     with torch.no_grad():
         for _, (X, y) in enumerate(loader):
             X, y = X.cuda(), y.cuda()
@@ -65,8 +52,7 @@ def eval_epoch(model, loader, loss):
             ce_loss = loss(output, y)
 
             test_loss += ce_loss.item() * y.size(0)
-            # test_acc += (output.max(1)[1] == y).sum().item()
-            # test_n += y.size(0)
+
 
 @hydra.main(config_path="conf", config_name="config_benchmark", version_base=None)
 def main(args):
@@ -88,7 +74,7 @@ def main(args):
         wandb.init(
             entity="kilka74",
             project="MonarchSOC",
-            tags=[args.dataset, "benchmark"],
+            tags=[args.dataset, "benchmark", "replace_3_final_layers"],
             name=f"benchmark epoch time {args.model_name}, {args.conv_layer}, {args.dataset}, groups={args.groups}, wd={args.weight_decay}",
             config={
                 "batch_size": args.batch_size,
