@@ -11,10 +11,10 @@ from utils import conv_mapping, activation_mapping
 
 
 class LipBlock(nn.Module):
-    def __init__(self, in_planes, planes, conv_layer, activation, stride=1, kernel_size=3, groups=1):
+    def __init__(self, in_planes, planes, conv_layer, activation, stride=1, kernel_size=3, groups=1, paired=False):
         super(LipBlock, self).__init__()
         self.conv = conv_layer(in_planes, planes*stride, kernel_size=kernel_size, 
-                               stride=stride, padding=kernel_size//2, groups=groups)
+                               stride=stride, padding=kernel_size//2, groups=groups, paired=paired)
         self.activation = activation_mapping(activation)
 
     def forward(self, x):
@@ -23,7 +23,7 @@ class LipBlock(nn.Module):
         
 class LipConvNet(nn.Module):
     def __init__(self, conv_name, activation, init_channels=32, block_size=1, 
-                 num_classes=10, input_side=32, groups=1):
+                 num_classes=10, input_side=32, groups=1, paired=False):
         super(LipConvNet, self).__init__()
         self.in_planes = 3
         
@@ -31,15 +31,15 @@ class LipConvNet(nn.Module):
         assert type(block_size) == int
 
         self.layer1 = self._make_layer(init_channels, block_size, conv_layer, activation,
-                                        stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups, paired=paired)
         self.layer2 = self._make_layer(self.in_planes, block_size, conv_layer, activation,
-                                        stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups, paired=paired)
         self.layer3 = self._make_layer(self.in_planes, block_size, conv_layer, activation,
-                                        stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups, paired=paired)
         self.layer4 = self._make_layer(self.in_planes, block_size, conv_layer, activation,
-                                        stride=2, kernel_size=3, groups=groups)
+                                        stride=2, kernel_size=3, groups=groups, paired=paired)
         self.layer5 = self._make_layer(self.in_planes, block_size, conv_layer, activation,
-                                        stride=2, kernel_size=1, groups=groups)
+                                        stride=2, kernel_size=1, groups=groups, paired=paired)
         
         flat_size = input_side // 32
         flat_features = flat_size * flat_size * self.in_planes
@@ -47,13 +47,13 @@ class LipConvNet(nn.Module):
                                         kernel_size=1, stride=1, groups=1)
 
     def _make_layer(self, planes, num_blocks, conv_layer, activation,
-                    stride, kernel_size, groups):
+                    stride, kernel_size, groups, paired):
         strides = [1]*(num_blocks-1) + [stride]
         kernel_sizes = [3]*(num_blocks-1) + [kernel_size]
         layers = []
         for stride, kernel_size in zip(strides, kernel_sizes):
             layers.append(LipBlock(self.in_planes, planes, conv_layer, activation,
-                                   stride, kernel_size, groups))
+                                   stride, kernel_size, groups, paired))
             self.in_planes = planes * stride
         return nn.Sequential(*layers)
 

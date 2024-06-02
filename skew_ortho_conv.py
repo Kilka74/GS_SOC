@@ -398,13 +398,16 @@ class LinearSOC(nn.Module):
 
 
 # https://github.com/jaxony/ShuffleNet/blob/e9bf42f0cda8dda518cafffd515654cc04584e7a/model.py#L36C1-L53C13
-def channel_shuffle(x, groups):
+def channel_shuffle(x, groups, paired=False):
     batchsize, num_channels, height, width = x.data.size()
 
     channels_per_group = num_channels // groups
 
     # reshape
-    x = x.view(batchsize, groups, channels_per_group, height, width)
+    if not paired:
+        x = x.view(batchsize, groups, channels_per_group, height, width)
+    else:
+        x = x.view(batchsize, groups, channels_per_group // 2, 2, height, width)
 
     # transpose
     # - contiguous() required if transpose() is used before view().
@@ -434,6 +437,7 @@ class MonarchSOC(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
+        paired=False
     ):
         super(MonarchSOC, self).__init__()
 
@@ -445,6 +449,7 @@ class MonarchSOC(nn.Module):
             self.groups_1 = groups
             self.groups_2 = out_channels // groups
 
+        self.paired = paired
         self.soc1 = SOC(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -482,11 +487,11 @@ class MonarchSOC(nn.Module):
 
     def forward(self, x):
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups_1)
+        x = channel_shuffle(x, self.groups_1, paired=self.paired)
         x = self.soc2(x)
         if isinstance(self.groups, tuple):
             return channel_shuffle(x, self.groups_2)
-        return channel_shuffle(x, self.out_channels // self.groups_1)
+        return channel_shuffle(x, self.out_channels // self.groups_1, paired=self.paired)
 
 
 class MonarchSOCAccelerated(nn.Module):
@@ -506,13 +511,14 @@ class MonarchSOCAccelerated(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
+        paired=False
     ):
         super(MonarchSOCAccelerated, self).__init__()
 
         self.groups = groups
         self.groups_1 = groups[0]
         self.groups_2 = groups[1]
-
+        self.paired = paired
         self.soc1 = SOC(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -550,9 +556,9 @@ class MonarchSOCAccelerated(nn.Module):
 
     def forward(self, x):
         if x.shape[1] % self.groups_1 == 0:
-            x = channel_shuffle(x, self.groups_1)
+            x = channel_shuffle(x, self.groups_1, paired=self.paired)
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups_2)
+        x = channel_shuffle(x, self.groups_2, paired=self.paired)
         return self.soc2(x)
 
 
@@ -574,12 +580,14 @@ class MonarchSOCReversed(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
+        paired=False
     ):
         super(MonarchSOCReversed, self).__init__()
 
         self.groups = groups
         self.groups_1 = groups[0]
         self.groups_2 = groups[1]
+        self.paired = False
 
         self.soc1 = SOC(
             in_channels=in_channels,
@@ -618,9 +626,9 @@ class MonarchSOCReversed(nn.Module):
 
     def forward(self, x):
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups_2)
+        x = channel_shuffle(x, self.groups_2, paired=self.paired)
         x = self.soc2(x)
-        x = channel_shuffle(x, self.out_channels // self.groups_2)
+        x = channel_shuffle(x, self.out_channels // self.groups_2, paired=self.paired)
         return x
 
 
@@ -641,10 +649,12 @@ class PermutedSOC(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
+        paired=False
     ):
         super(PermutedSOC, self).__init__()
 
         self.groups = groups
+        self.paired = paired
 
         self.soc1 = SOC(
             in_channels=in_channels,
@@ -665,7 +675,7 @@ class PermutedSOC(nn.Module):
     
     def forward(self, x):
         # if x.shape[1] % self.groups == 0:
-        #     x = channel_shuffle(x, self.groups)
+        #     x = channel_shuffle(x, self.groups, paired=self.paired)
         return self.soc1(x)
 
 class LPRSOC(nn.Module):
@@ -685,9 +695,11 @@ class LPRSOC(nn.Module):
         update_freq=200,
         correction=0.7,
         device="cuda",
+        paired=False
     ):
         super(LPRSOC, self).__init__()
         self.groups = groups
+        self.paired = paired
         self.soc1 = SOC(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -725,5 +737,5 @@ class LPRSOC(nn.Module):
     
     def forward(self, x):
         x = self.soc1(x)
-        x = channel_shuffle(x, groups=self.groups)
+        x = channel_shuffle(x, groups=self.groups, paired=self.paired)
         return self.soc2(x)

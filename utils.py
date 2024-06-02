@@ -6,7 +6,7 @@ import math
 import numpy as np
 from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed, MonarchSOCAccelerated, LPRSOC
 from original_soc import SOC as OriginalSOC
-from custom_activations import HouseHolder, HouseHolder_Order_2, MinMax, MinMaxPermuted
+from custom_activations import MinMax, MinMaxPermuted
 
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2507, 0.2507, 0.2507)
@@ -155,15 +155,8 @@ activation_dict = {
 }
 
 
-def activation_mapping(activation_name, channels=None):
-    if activation_name == "hh1":
-        assert channels is not None, channels
-        activation_func = HouseHolder(channels=channels)
-    elif activation_name == "hh2":
-        assert channels is not None, channels
-        activation_func = HouseHolder_Order_2(channels=channels)
-    else:
-        activation_func = activation_dict[activation_name]
+def activation_mapping(activation_name):
+    activation_func = activation_dict[activation_name]
     return activation_func
 
 
