@@ -94,6 +94,7 @@ def main(args):
             "activation": args.activation,
             "number of parameters with grad": sum(p.numel() for p in model.parameters() if p.requires_grad),
             "number of all parameters": sum(p.numel() for p in model.parameters()),
+            "paired": bool(args.paired),
             "groups": groups
         }
     )
