@@ -405,9 +405,9 @@ def channel_shuffle(x, groups, paired=False):
 
     # reshape
     if not paired:
-        x = x.view(batchsize, groups, channels_per_group, height, width)
+        x = x.view(batchsize, channels_per_group, groups, height, width)
     else:
-        x = x.view(batchsize, groups, channels_per_group // 2, 2, height, width)
+        x = x.view(batchsize, channels_per_group // 2, groups, 2, height, width)
 
     # transpose
     # - contiguous() required if transpose() is used before view().
