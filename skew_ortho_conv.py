@@ -674,8 +674,8 @@ class PermutedSOC(nn.Module):
         )
     
     def forward(self, x):
-        # if x.shape[1] % self.groups == 0:
-        #     x = channel_shuffle(x, self.groups, paired=self.paired)
+        if x.shape[1] % self.groups == 0:
+            x = channel_shuffle(x, self.groups, paired=self.paired)
         return self.soc1(x)
 
 class LPRSOC(nn.Module):
