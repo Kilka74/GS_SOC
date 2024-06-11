@@ -79,7 +79,7 @@ def main(args):
         project="MonarchSOC",
         notes=args.notes,
         tags=[args.dataset, f"lipconvnet-{args.block_size*5}"],
-        name=f"{args.model_name}-{args.block_size*5}, {args.dataset}, {args.conv_layer}, groups={groups}, wd={args.weight_decay}",
+        name=f"{args.conv_layer}, groups={groups}",
         config={
             "batch_size": args.batch_size,
             "epochs": args.epochs,

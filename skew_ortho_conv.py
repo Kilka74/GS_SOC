@@ -474,7 +474,7 @@ class MonarchSOC(nn.Module):
             stride=1,
             padding=padding,
             bias=bias,
-            groups=1,
+            groups=self.groups_2,
             train_terms=train_terms,
             eval_terms=eval_terms,
             init_iters=init_iters,
@@ -486,12 +486,13 @@ class MonarchSOC(nn.Module):
         self.out_channels = out_channels
 
     def forward(self, x):
+        if x.shape[1] % self.groups_1 == 0:
+            x = channel_shuffle(x, self.groups_1, paired=self.paired)
         x = self.soc1(x)
-        x = channel_shuffle(x, self.groups_1, paired=self.paired)
-        x = self.soc2(x)
-        if isinstance(self.groups, tuple):
-            return channel_shuffle(x, self.groups_2)
-        return channel_shuffle(x, self.out_channels // self.groups_1, paired=self.paired)
+        channel_shuffle(x, self.out_channels // self.groups_1, paired=self.paired)
+        return self.soc2(x)
+        # if isinstance(self.groups, tuple):
+        #     return channel_shuffle(x, self.groups_2)
 
 
 class MonarchSOCAccelerated(nn.Module):
