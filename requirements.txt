@@ -4,3 +4,4 @@ einops==0.7.0
 torch==2.2.0
 pytest==7.4.0
 torchvision==0.17.0
+clearml==1.16.4
