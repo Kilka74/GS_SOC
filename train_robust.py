@@ -10,18 +10,22 @@ import torch.nn.functional as F
 
 from lip_convnets import LipConvNet
 from clearml import Task, Logger
-from utils import get_loaders, cifar10_std, evaluate_certificates
+from utils import get_loaders, cifar10_std, tiny_imagenet_std, evaluate_certificates
 
 
 logger = logging.getLogger(__name__)
 
 
 def init_model(args):
+    input_side = 32
     if args.dataset == 'cifar10':
-        num_classes = 10    
+        num_classes = 10
     elif args.dataset == 'cifar100':
         num_classes = 100
-    
+    elif args.dataset == "tiny_imagenet":
+        num_classes = 200
+        input_side = 64
+
     if isinstance(args.groups, str):
         groups = tuple(map(int, args.groups.split()))
     else:
@@ -29,7 +33,7 @@ def init_model(args):
 
     model = LipConvNet(args.conv_layer, args.activation, init_channels=args.init_channels,
                        block_size=args.block_size, num_classes=num_classes,
-                       groups=groups, paired=args.paired)
+                       groups=groups, paired=args.paired, input_side=input_side)
     return model
 
 
@@ -61,8 +65,10 @@ def main(args):
     train_loader, test_loader = get_loaders(
         args.data_dir, args.batch_size, args.dataset
     )
-
-    std = cifar10_std
+    if args.dataset != "tiny_imagenet":
+        std = cifar10_std
+    else:
+        std = tiny_imagenet_std
 
     torch.backends.cudnn.benchmark = True
     model = init_model(args).cuda()
@@ -126,7 +132,7 @@ def main(args):
     L = 1 / torch.max(std)
     prev_robust_acc = 0.
     start_train_time = time.time()
-    logger.info('Epoch \t Seconds \t LR \t Train Loss \t Train Acc \t Test Loss \t ' + 
+    logger.info('Epoch \t Seconds \t LR \t Train Loss \t Train Acc \t Test Loss \t ' +
                 'Test Acc \t Test Robust \t Test Cert')
     for epoch in range(args.epochs):
         model.train()

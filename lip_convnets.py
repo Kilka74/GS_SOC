@@ -20,13 +20,13 @@ class LipBlock(nn.Module):
     def forward(self, x):
         x = self.activation(self.conv(x))
         return x
-        
+
 class LipConvNet(nn.Module):
-    def __init__(self, conv_name, activation, init_channels=32, block_size=1, 
+    def __init__(self, conv_name, activation, init_channels=32, block_size=1,
                  num_classes=10, input_side=32, groups=1, paired=False):
         super(LipConvNet, self).__init__()
         self.in_planes = 3
-        
+
         conv_layer = conv_mapping[conv_name]
         assert type(block_size) == int
 
@@ -40,10 +40,10 @@ class LipConvNet(nn.Module):
                                         stride=2, kernel_size=3, groups=groups, paired=paired)
         self.layer5 = self._make_layer(self.in_planes, block_size, conv_layer, activation,
                                         stride=2, kernel_size=1, groups=groups, paired=paired)
-        
+
         flat_size = input_side // 32
         flat_features = flat_size * flat_size * self.in_planes
-        self.last_layer = SOC(flat_features, num_classes, 
+        self.last_layer = SOC(flat_features, num_classes,
                                         kernel_size=1, stride=1, groups=1)
 
     def _make_layer(self, planes, num_blocks, conv_layer, activation,

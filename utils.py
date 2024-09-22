@@ -1,45 +1,70 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils
+import torch.utils.data
 from torchvision import datasets, transforms
 import math
 import numpy as np
 from skew_ortho_conv import SOC, MonarchSOC, PermutedSOC, MonarchSOCReversed, MonarchSOCAccelerated, LPRSOC
 from original_soc import SOC as OriginalSOC
 from custom_activations import MinMax, MinMaxPermuted
+from datasets import load_dataset
 
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2507, 0.2507, 0.2507)
+
+tiny_imagenet_mean = (0.4802, 0.4481, 0.3975)
+tiny_imagenet_std = (0.2302, 0.2265, 0.2262)
 
 mu = torch.tensor(cifar10_mean).view(3, 1, 1).cuda()
 std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 
 
+class TinyImagenet(torch.utils.data.Dataset):
+    def __init__(self, split):
+        self.dataset = load_dataset(path='zh-plus/tiny-imagenet', split=split)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def set_transform(self, func):
+        self.dataset.set_transform(func)
+
+    def __getitem__(self, idx):
+        return self.dataset[idx]["image"], self.dataset[idx]["label"]
+
+
 def get_loaders(dir_, batch_size, dataset_name="cifar10", normalize=True):
-    if dataset_name == "cifar10":
-        dataset_func = datasets.CIFAR10
-    elif dataset_name == "cifar100":
-        dataset_func = datasets.CIFAR100
+
+    input_side = 32
+    if dataset_name == "tiny_imagenet":
+        mean = tiny_imagenet_mean
+        std = tiny_imagenet_std
+        input_side = 64
+    else:
+        mean = cifar10_mean
+        std = cifar10_std
 
     if normalize:
         train_transform = transforms.Compose(
             [
-                transforms.RandomCrop(32, padding=4),
+                transforms.RandomCrop(input_side, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize(cifar10_mean, cifar10_std),
+                transforms.Normalize(mean, std),
             ]
         )
         test_transform = transforms.Compose(
             [
                 transforms.ToTensor(),
-                transforms.Normalize(cifar10_mean, cifar10_std),
+                transforms.Normalize(mean, std),
             ]
         )
     else:
         train_transform = transforms.Compose(
             [
-                transforms.RandomCrop(32, padding=4),
+                transforms.RandomCrop(input_side, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
             ]
@@ -50,13 +75,35 @@ def get_loaders(dir_, batch_size, dataset_name="cifar10", normalize=True):
             ]
         )
 
+    if dataset_name == "cifar10":
+        dataset_func = datasets.CIFAR10
+    elif dataset_name == "cifar100":
+        dataset_func = datasets.CIFAR100
+
+    if dataset_name == "tiny_imagenet":
+
+        def train_transform_tiny_imagenet(examples):
+            examples['image'] = [train_transform(example.convert("RGB")) for example in examples["image"]]
+            return examples
+
+        def tet_transform_tiny_imagenet(examples):
+            examples['image'] = [test_transform(example.convert("RGB")) for example in examples["image"]]
+            return examples
+
+        train_dataset = TinyImagenet(split='train')
+        test_dataset = TinyImagenet(split='test')
+        train_dataset.set_transform(train_transform_tiny_imagenet)
+        test_dataset.set_transform(tet_transform_tiny_imagenet)
+
+    else:
+        train_dataset = dataset_func(
+            dir_, train=True, transform=train_transform, download=True
+        )
+        test_dataset = dataset_func(
+            dir_, train=False, transform=test_transform, download=True
+        )
     num_workers = 4
-    train_dataset = dataset_func(
-        dir_, train=True, transform=train_transform, download=True
-    )
-    test_dataset = dataset_func(
-        dir_, train=False, transform=test_transform, download=True
-    )
+
     train_loader = torch.utils.data.DataLoader(
         dataset=train_dataset,
         batch_size=batch_size,
