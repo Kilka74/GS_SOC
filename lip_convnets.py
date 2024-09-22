@@ -63,6 +63,7 @@ class LipConvNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         x = self.layer5(x)
+        x = x.view(x.shape[0], -1, 1, 1)
         x = self.last_layer(x)
         x = x.view(x.shape[0], -1)
         return x

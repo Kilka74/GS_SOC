@@ -91,7 +91,7 @@ def get_loaders(dir_, batch_size, dataset_name="cifar10", normalize=True):
             return examples
 
         train_dataset = TinyImagenet(split='train')
-        test_dataset = TinyImagenet(split='test')
+        test_dataset = TinyImagenet(split='valid')
         train_dataset.set_transform(train_transform_tiny_imagenet)
         test_dataset.set_transform(tet_transform_tiny_imagenet)
 
