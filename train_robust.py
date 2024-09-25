@@ -39,8 +39,8 @@ def init_model(args):
 
 @hydra.main(config_path="conf", config_name="config_robust", version_base=None)
 def main(args):
-    args.out_dir += '_' + str(args.dataset) 
-    args.out_dir += '_' + str(args.block_size) 
+    args.out_dir += '_' + str(args.dataset)
+    args.out_dir += '_' + str(args.block_size)
     args.out_dir += '_' + str(args.conv_layer)
     args.out_dir += '_' + str(args.init_channels)
     args.out_dir += '_' + str(args.activation)
@@ -81,7 +81,7 @@ def main(args):
     task = Task.init(
         project_name='Monarch_SOC',
         task_name=f"{args.conv_layer}, groups={groups}",
-        tags=[args.dataset, "lipconvnet-{args.block_size*5}"]
+        tags=[args.dataset, f"lipconvnet-{args.block_size*5}"]
     )
     log = Logger.current_logger()
     log.report_single_value(name="number of parameters with grad",
